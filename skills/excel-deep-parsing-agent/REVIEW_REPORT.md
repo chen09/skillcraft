@@ -66,6 +66,13 @@ No Critical findings remained after review.
 - Reproduction: RPC workbook `RPA-184-A004-001_RPA少額売上審査.xlsx` contains 53 media parts, 9 drawing XML files, 200 shapes, and 22 connectors; openpyxl warned that DrawingML shapes would be lost.
 - Fix applied: added ZIP/DrawingML preflight, raw media export with magic-byte sniffing, contact sheets, drawing object/text samples, explicit render warnings, and `ocr_results/vision_queue.jsonl`.
 
+#### M-7 Windows Excel users still needed LibreOffice for sheet rendering
+
+- File path: `runtime/pipeline.py`, `runtime/executables.py`, `scripts/run_pipeline.py`, `scripts/smoke_test.py`, `scripts/requirements.txt`
+- Risk: Windows teams commonly have Microsoft Excel installed but not LibreOffice. Object-heavy workbooks would still miss workbook PDF rendering and stay in `blocked_missing_render_backend`.
+- Reproduction: design review of the render path showed workbook PDF export only called `soffice`.
+- Fix applied: added Windows Microsoft Excel automation fallback through `pywin32` first and PowerShell COM second for workbook PDF export and `.xls -> .xlsx` conversion.
+
 ### Low
 
 #### L-1 Markdown table cells were not escaped
@@ -82,8 +89,8 @@ GO for cross-team distribution after applying this hardening patch.
 ## Residual Known Limitations
 
 - `markitdown`, `soffice`, `pytesseract`, and `pypdfium2` are optional in the tested environment; missing tools are reported and affected stages degrade instead of failing the whole run. Local OCR can use the `tesseract` executable without `pytesseract`.
-- `.xls/.doc/.ppt` deep parsing depends on successful LibreOffice conversion.
-- Full sheet rendering of DrawingML layouts still requires LibreOffice/Excel or another renderer; without it the runtime preserves media/object evidence and queues a blocked render task.
+- `.xls` deep parsing can use LibreOffice or Windows Microsoft Excel automation; `.doc/.ppt` still depend on successful LibreOffice conversion.
+- Full sheet rendering of DrawingML layouts requires LibreOffice, Windows Microsoft Excel automation, or another renderer; without one the runtime preserves media/object evidence and queues a blocked render task.
 - Archive expansion remains intentionally out of scope; archives are inventoried as pending confirmation.
 - File type selection is extension-driven first, then parser-validated by the relevant library.
 - The runtime performs local OCR and writes a Vision queue; it does not call an external Vision LLM by itself.
@@ -91,9 +98,10 @@ GO for cross-team distribution after applying this hardening patch.
 ## Verification Evidence
 
 - Smoke test command: `<python> scripts/smoke_test.py`
-- Smoke test result: exit `0`; core imports `openpyxl` and `runtime.pipeline` passed; optional `pytesseract`, `pypdfium2`, `markitdown`, and `soffice` were reported missing where applicable; `tesseract` executable was available.
+- Smoke test result: exit `0`; core imports `openpyxl` and `runtime.pipeline` passed; optional `pytesseract`, `pypdfium2`, `markitdown`, and `soffice` were reported missing where applicable; `tesseract` executable was available; Windows Excel automation was `not_applicable` on this macOS run.
 - Sample pipeline command: `<python> scripts/run_pipeline.py --input-path <sample_input> --output-root <sample_output>`
 - Sample pipeline result: exit `0`; processed `sample.xlsx`, `sample.docx`, and `sample.pptx`.
+- Windows Excel automation static check: PASS; the generated PowerShell script contains Excel COM creation, PDF export, and `.xlsx` SaveAs branches.
 - RPC sample pipeline command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-markitdown`
 - RPC sample pipeline result: exit `0`; recorded 53 media parts, 9 drawing XML files, 200 shapes, 22 connectors, 111 OCR successes, and 113 Vision queue tasks.
 - Artifact checklist result:

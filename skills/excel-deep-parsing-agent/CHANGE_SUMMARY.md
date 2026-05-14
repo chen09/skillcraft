@@ -3,6 +3,7 @@
 ## What Changed
 
 - Added RPC-style Excel visual corpus handling: ZIP/DrawingML preflight, media extension sniffing, raw media extraction, per-sheet contact sheets, shape/object text sampling, and Vision queue output.
+- Added Windows Microsoft Excel automation fallback for workbook PDF export and `.xls -> .xlsx` conversion when LibreOffice is unavailable.
 - Added Tesseract CLI fallback so local OCR can run when `pytesseract` is absent but the `tesseract` executable is available.
 - Added input validation so missing or invalid `--input-path` fails with exit code `2` instead of generating empty success artifacts.
 - Added collision-safe artifact naming for markdown, visual exports, attachment staging, OCR JSON, and deep-reading notes.
@@ -10,10 +11,10 @@
 - Changed shared runtime artifacts to use relative source/output paths and removed absolute interpreter paths from environment probes.
 - Added a subprocess wrapper with a 120-second timeout for `markitdown` and `soffice`.
 - Added a 25-page cap for local PDF OCR.
-- Added executable discovery across PATH plus common macOS and Windows install locations for LibreOffice and Tesseract.
+- Added executable discovery across PATH plus common macOS and Windows install locations for LibreOffice, PowerShell, and Tesseract.
 - Escaped Markdown table cells in `file_inventory.md`.
 - Clarified dependencies, optional tool behavior, proxy/offline install options, and legacy `.xls/.doc/.ppt` conversion limits.
-- Updated `VERSION` to `0.2.2` and added `0.2.1`/`0.2.2` changelog entries.
+- Updated `VERSION` to `0.2.3` and added `0.2.1`/`0.2.2`/`0.2.3` changelog entries.
 
 ## Why It Changed
 
@@ -23,6 +24,7 @@
 - Avoid unbounded local processing on untrusted or malformed Office/PDF files.
 - Make setup and degradation behavior explicit for teams with different Python, proxy, LibreOffice, OCR, or markdown-extraction environments.
 - Preserve object-heavy Excel evidence that normal openpyxl parsing cannot represent, especially SAP screenshots, flowcharts, connectors, and DrawingML shapes.
+- Reduce Windows-specific release risk for teams that have Microsoft Excel installed but not LibreOffice.
 
 ## Validation Results
 
@@ -30,7 +32,7 @@
   - Command: `<python> -m py_compile runtime/pipeline.py scripts/run_pipeline.py scripts/export_visuals.py scripts/ocr_runner.py scripts/smoke_test.py`
 - Smoke test: PASS
   - Command: `<python> scripts/smoke_test.py`
-  - Result: exit `0`; core imports passed; optional missing dependencies were reported, not hidden.
+  - Result: exit `0`; core imports passed; optional missing dependencies were reported, not hidden; Windows Excel automation is `not_applicable` on this macOS run.
 - RPC Excel sample run: PASS
   - Command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-markitdown`
   - Result: exit `0`; 53 media entries, 9 drawing XML files, 200 shapes, 22 connectors, 111 OCR successes, and 113 Vision queue tasks were recorded.
@@ -40,6 +42,9 @@
 - Mixed Office sample run: PASS
   - Command: `<python> scripts/run_pipeline.py --input-path <sample_input> --output-root <sample_output>`
   - Result: exit `0`; required artifacts existed.
+- Windows Excel automation script static check: PASS
+  - Command: `<python> -c "from runtime.pipeline import _excel_powershell_script; ..."`
+  - Result: PowerShell script contains Excel COM creation, PDF export, and `.xlsx` SaveAs branches.
 - Standalone visual export script: PASS
   - Command: `<python> scripts/export_visuals.py --workbook <sample_input>/sample.xlsx --output-dir <visual_output>`
   - Result: exit `0`; log written; no absolute workbook/output path in log.

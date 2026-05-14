@@ -60,11 +60,12 @@ Symptoms:
 
 Actions:
 
-1. verify `soffice` availability
-2. confirm LibreOffice can open the source file manually if conversion keeps failing
-3. keep embedded-image extraction as fallback where available
-4. review `workbook_inventory.md` visual preflight counts for shapes/connectors/unsupported media
-5. log warning and affected workbook
+1. verify `soffice` availability, or on Windows verify Microsoft Excel is installed
+2. on Windows, run `smoke_test.py` and check `powershell`, `module:win32com`, and `windows_excel_automation`
+3. confirm LibreOffice/Excel can open the source file manually if conversion keeps failing
+4. keep embedded-image extraction as fallback where available
+5. review `workbook_inventory.md` visual preflight counts for shapes/connectors/unsupported media
+6. log warning and affected workbook
 
 ## OCR outputs empty
 

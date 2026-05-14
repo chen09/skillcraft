@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -26,9 +27,14 @@ def _probe_environment() -> dict[str, dict[str, str]]:
         "python": {"status": "ok", "detail": f"{sys.implementation.name} {sys.version.split()[0]}"},
         "markitdown": _state("markitdown"),
         "soffice": _state("soffice"),
+        "powershell": _state("powershell"),
         "tesseract": _state("tesseract"),
+        "windows_excel_automation": {
+            "status": "available_if_excel_installed" if platform.system() == "Windows" else "not_applicable",
+            "detail": "uses pywin32 when installed, otherwise PowerShell COM on Windows",
+        },
     }
-    for module in ("openpyxl", "pytesseract", "PIL", "pypdfium2", "docx", "pptx"):
+    for module in ("openpyxl", "pytesseract", "PIL", "pypdfium2", "docx", "pptx", "win32com"):
         try:
             __import__(module)
             probe[f"module:{module}"] = {"status": "ok", "detail": ""}

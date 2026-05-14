@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 - Windows Excel render fallback
+
+- Added Windows Microsoft Excel automation fallback for workbook PDF export when LibreOffice is unavailable.
+- Added Windows Microsoft Excel automation fallback for `.xls -> .xlsx` spreadsheet conversion.
+- Added PowerShell executable discovery and Windows Excel automation probe entries.
+- Added optional Windows-only `pywin32` dependency marker.
+
 ## 0.2.2 - RPC visual corpus hardening
 
 - Added Excel ZIP/DrawingML visual preflight for media counts, shape/connectors, object names, and shape text samples.

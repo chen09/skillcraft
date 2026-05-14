@@ -73,8 +73,8 @@ python .cursor/skills/excel-deep-parsing-agent/scripts/run_pipeline.py --input-p
 
 - File type handling is extension-driven first, then parser-validated. Unsupported or corrupt files are reported with warnings instead of treated as success.
 - `markitdown` base install may not include all format extras (`xlsx`, `docx`), so markdown extraction can fail for some files while deep parsing still continues.
-- `.xls/.doc/.ppt` require LibreOffice conversion before deep parsing. The runtime checks common `soffice` locations on macOS, Windows, and PATH. If LibreOffice is missing, those legacy formats are reported with warnings and lower confidence.
-- Full workbook/sheet PDF export depends on `soffice`; without it, embedded-image extraction, DrawingML preflight, shape text sampling, contact sheets, and explicit Vision queue entries still run where possible.
+- `.xls` can be converted through LibreOffice or Windows Microsoft Excel automation. `.doc/.ppt` still require LibreOffice conversion before deep parsing.
+- Full workbook/sheet PDF export uses LibreOffice first, then Windows Microsoft Excel automation when available. Without either renderer, embedded-image extraction, DrawingML preflight, shape text sampling, contact sheets, and explicit Vision queue entries still run where possible.
 - Local OCR uses `pytesseract` when installed, then falls back to the `tesseract` executable. The runtime checks common `tesseract` locations on macOS, Windows, and PATH. If both paths are unavailable, OCR artifacts record a skipped status.
 - Scripts are cross-platform Python, but example paths may use Windows `D:/...` because many source design packages are Windows-authored.
 - Runtime output avoids absolute source paths in result artifacts. Use the original command line or file inventory root to map relative paths back to local files.
@@ -84,6 +84,8 @@ Recommended optional setup:
 ```bash
 python -m pip install "markitdown[all]"
 ```
+
+On Windows, installing requirements includes `pywin32`; if it is unavailable, the runtime falls back to PowerShell COM for Excel PDF export/conversion.
 
 ## Output artifacts
 

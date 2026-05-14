@@ -9,6 +9,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -614,6 +615,139 @@ def _convert_with_soffice(source: Path, target_ext: str, work_dir: Path) -> Path
     return candidate if candidate.exists() else None
 
 
+def _convert_with_excel_pywin32(source: Path, target_ext: str, work_dir: Path) -> Path | None:
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import pythoncom  # type: ignore
+        import win32com.client  # type: ignore
+    except Exception:
+        return None
+    target_ext = target_ext.lower()
+    if target_ext not in {".pdf", ".xlsx"}:
+        return None
+    target = work_dir / f"{source.stem}{target_ext}"
+    excel = None
+    workbook = None
+    try:
+        pythoncom.CoInitialize()
+    except Exception:
+        return None
+    try:
+        excel = win32com.client.DispatchEx("Excel.Application")
+        excel.Visible = False
+        excel.DisplayAlerts = False
+        workbook = excel.Workbooks.Open(str(source), 0, True)
+        if target_ext == ".pdf":
+            workbook.ExportAsFixedFormat(0, str(target))
+        else:
+            workbook.SaveAs(str(target), FileFormat=51)
+        return target if target.exists() else None
+    except Exception:
+        return None
+    finally:
+        try:
+            if workbook is not None:
+                workbook.Close(False)
+        except Exception:
+            pass
+        try:
+            if excel is not None:
+                excel.Quit()
+        except Exception:
+            pass
+        pythoncom.CoUninitialize()
+
+
+def _excel_powershell_script() -> str:
+    return r"""
+param(
+  [Parameter(Mandatory=$true)][string]$Source,
+  [Parameter(Mandatory=$true)][string]$Output,
+  [Parameter(Mandatory=$true)][string]$Mode
+)
+$ErrorActionPreference = "Stop"
+$excel = $null
+$workbook = $null
+try {
+  $excel = New-Object -ComObject Excel.Application
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $workbook = $excel.Workbooks.Open($Source, 0, $true)
+  if ($Mode -eq "pdf") {
+    $workbook.ExportAsFixedFormat(0, $Output)
+  } elseif ($Mode -eq "xlsx") {
+    $workbook.SaveAs($Output, 51)
+  } else {
+    throw "Unsupported export mode: $Mode"
+  }
+} finally {
+  if ($workbook -ne $null) {
+    $workbook.Close($false)
+    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook)
+  }
+  if ($excel -ne $null) {
+    $excel.Quit()
+    [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel)
+  }
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
+}
+"""
+
+
+def _convert_with_excel_powershell(source: Path, target_ext: str, work_dir: Path) -> Path | None:
+    if not sys.platform.startswith("win"):
+        return None
+    powershell = find_executable("powershell")
+    if not powershell:
+        return None
+    target_ext = target_ext.lower()
+    mode = {".pdf": "pdf", ".xlsx": "xlsx"}.get(target_ext)
+    if mode is None:
+        return None
+    target = work_dir / f"{source.stem}{target_ext}"
+    script = work_dir / "excel_export.ps1"
+    script.write_text(_excel_powershell_script(), encoding="utf-8")
+    returncode, _log = _run_tool(
+        [
+            powershell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            "-Source",
+            str(source),
+            "-Output",
+            str(target),
+            "-Mode",
+            mode,
+        ],
+        timeout_seconds=max(SUBPROCESS_TIMEOUT_SECONDS, 240),
+    )
+    if returncode != 0:
+        return None
+    return target if target.exists() else None
+
+
+def _convert_with_excel_automation(source: Path, target_ext: str, work_dir: Path) -> Path | None:
+    converted = _convert_with_excel_pywin32(source, target_ext, work_dir)
+    if converted is not None:
+        return converted
+    return _convert_with_excel_powershell(source, target_ext, work_dir)
+
+
+def _convert_spreadsheet(source: Path, target_ext: str, work_dir: Path) -> tuple[Path | None, str | None]:
+    converted = _convert_with_soffice(source, target_ext, work_dir)
+    if converted is not None:
+        return converted, "LibreOffice"
+    converted = _convert_with_excel_automation(source, target_ext, work_dir)
+    if converted is not None:
+        return converted, "Microsoft Excel"
+    return None, None
+
+
 def scan_input(config: PipelineConfig) -> list[FileInventoryRow]:
     root = config.input_path
     if root.is_file():
@@ -932,7 +1066,7 @@ def analyze_workbook(path: Path, source_label: str | None = None) -> WorkbookAna
         return _analyze_xlsx_like(path, label)
     if suffix == ".xls":
         with TemporaryDirectory(prefix="office_skill_xls_") as temp_dir:
-            converted = _convert_with_soffice(path, ".xlsx", Path(temp_dir))
+            converted, backend = _convert_spreadsheet(path, ".xlsx", Path(temp_dir))
             if converted is None:
                 return WorkbookAnalysis(
                     label,
@@ -941,10 +1075,10 @@ def analyze_workbook(path: Path, source_label: str | None = None) -> WorkbookAna
                     [],
                     {},
                     [],
-                    [".xls conversion to .xlsx failed; install/configure LibreOffice soffice."],
+                    [".xls conversion to .xlsx failed; install/configure LibreOffice soffice or Windows Microsoft Excel automation."],
                 )
             analyzed = _analyze_xlsx_like(converted, label)
-            analyzed.extraction_warnings.append("source .xls converted to .xlsx for deep parse")
+            analyzed.extraction_warnings.append(f"source .xls converted to .xlsx for deep parse via {backend}")
             return analyzed
     return WorkbookAnalysis(label, Path(label).name, [], [], {}, [], [f"unsupported spreadsheet extension: {suffix}"])
 
@@ -1111,18 +1245,14 @@ def export_visual_assets(source_file: Path, workbook_analysis: WorkbookAnalysis,
                         export_path=str(contact),
                     )
                 )
-    soffice = find_executable("soffice")
-    if soffice:
-        returncode, _log = _run_tool(
-            [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(source_file)],
-        )
-        candidate = output_dir / f"{source_file.stem}.pdf"
-        if returncode == 0 and candidate.exists():
+    if source_file.suffix.lower() in {".xlsx", ".xlsm", ".xls"}:
+        candidate, backend = _convert_spreadsheet(source_file, ".pdf", output_dir)
+        if candidate is not None:
             exported.append(
                 ObjectRecord(
                     object_type="sheet_pdf_export",
                     sheet_name="*",
-                    description="Workbook visual export via LibreOffice",
+                    description=f"Workbook visual export via {backend}",
                     export_path=str(candidate),
                 )
             )

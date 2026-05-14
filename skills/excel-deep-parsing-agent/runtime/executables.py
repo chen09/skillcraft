@@ -24,6 +24,12 @@ EXECUTABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
         r"C:\Program Files\Tesseract-OCR\tesseract.exe",
         r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
     ),
+    "powershell": (
+        "powershell",
+        "pwsh",
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+        r"C:\Program Files\PowerShell\7\pwsh.exe",
+    ),
 }
 
 

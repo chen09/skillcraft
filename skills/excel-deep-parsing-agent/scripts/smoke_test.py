@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import platform
 import sys
 from pathlib import Path
 
@@ -28,16 +29,20 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             report["imports"]["core"][module] = {"status": "missing_or_failed", "detail": str(exc)}
 
-    for module in ("pytesseract", "PIL", "pypdfium2", "docx", "pptx"):
+    for module in ("pytesseract", "PIL", "pypdfium2", "docx", "pptx", "win32com"):
         try:
             __import__(module)
             report["imports"]["optional"][module] = {"status": "ok"}
         except Exception as exc:  # noqa: BLE001
             report["imports"]["optional"][module] = {"status": "missing_or_failed", "detail": str(exc)}
 
-    for exe in ("markitdown", "soffice", "tesseract"):
+    for exe in ("markitdown", "soffice", "powershell", "tesseract"):
         path = find_executable(exe)
         report["executables"][exe] = {"status": "ok" if path else "missing", "detail": "available" if path else ""}
+    report["executables"]["windows_excel_automation"] = {
+        "status": "available_if_excel_installed" if platform.system() == "Windows" else "not_applicable",
+        "detail": "uses pywin32 when installed, otherwise PowerShell COM on Windows",
+    }
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

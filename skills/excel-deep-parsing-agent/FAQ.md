@@ -19,7 +19,7 @@ python -m pip install "markitdown[all]"
 
 ## Q3. How is `.xls` handled?
 
-The pipeline attempts `.xls -> .xlsx` conversion via LibreOffice (`soffice`) and then performs deep parse.
+The pipeline attempts `.xls -> .xlsx` conversion via LibreOffice (`soffice`) first. On Windows it can fall back to Microsoft Excel automation through `pywin32` or PowerShell COM.
 If conversion is unavailable, it logs warnings and marks uncertainty.
 
 ## Q3-1. How are `.doc` and `.ppt` handled?
@@ -40,9 +40,10 @@ Likely image quality, language model data, or OCR backend setup. See `troublesho
 Recommended, not always mandatory:
 
 - `soffice`: improves legacy conversion (`.xls/.doc/.ppt`) and PDF export
+- Windows Microsoft Excel: can export workbook PDFs and convert `.xls` when `soffice` is unavailable
 - `tesseract`: enables local OCR extraction
 
-The Python package `pytesseract` is also required for local OCR. The runtime checks common `tesseract` locations on macOS, Windows, and PATH. If either package or executable is missing, OCR result files use `skipped` or `failed` status.
+The Python package `pytesseract` is preferred for local OCR, but the runtime falls back to the `tesseract` executable. The runtime checks common `tesseract` locations on macOS, Windows, and PATH. If both OCR paths are unavailable, OCR result files use `skipped` or `failed` status.
 
 ## Q5. What is the minimum output set to share with stakeholders?
 
