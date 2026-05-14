@@ -26,6 +26,7 @@ skillcraft/
 ## Current Skills
 
 - `skills/agent-continuity`: Externalize long-running agent task state into `handoff.md`, supporting proactive checkpoints and emergency rescue handoffs.
+- `skills/excel-deep-parsing-agent`: Deeply parse mixed Office packages with spreadsheet, document, visual export, OCR, and traceable summary artifacts.
 - `skills/video-research-visual-report`: Convert a video into a researched text review plus visual report. It covers transcript extraction, original-source checking, external opinions, adversarial analysis, information images, long images, and PPT-style outputs.
 
 ## Install A Skill Locally
@@ -35,6 +36,7 @@ For Codex-style local skills:
 ```bash
 mkdir -p ~/.codex/skills
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/agent-continuity ~/.codex/skills/agent-continuity
+ln -s /Volumes/WDC2T/Project/skillcraft/skills/excel-deep-parsing-agent ~/.codex/skills/excel-deep-parsing-agent
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/video-research-visual-report ~/.codex/skills/video-research-visual-report
 ```
 
