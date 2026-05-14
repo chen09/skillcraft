@@ -29,6 +29,7 @@ excel-deep-parsing-agent/
 ├── LICENSE
 ├── runtime/
 │   ├── __init__.py
+│   ├── executables.py
 │   └── pipeline.py
 └── scripts/
     ├── run_pipeline.py
@@ -70,9 +71,9 @@ python .cursor/skills/excel-deep-parsing-agent/scripts/run_pipeline.py --input-p
 
 - File type handling is extension-driven first, then parser-validated. Unsupported or corrupt files are reported with warnings instead of treated as success.
 - `markitdown` base install may not include all format extras (`xlsx`, `docx`), so markdown extraction can fail for some files while deep parsing still continues.
-- `.xls/.doc/.ppt` require LibreOffice `soffice` conversion before deep parsing. If `soffice` is missing, those legacy formats are reported with warnings and lower confidence.
+- `.xls/.doc/.ppt` require LibreOffice conversion before deep parsing. The runtime checks common `soffice` locations on macOS, Windows, and PATH. If LibreOffice is missing, those legacy formats are reported with warnings and lower confidence.
 - PDF export also depends on `soffice`; without it, embedded-image extraction and structural parsing still run where possible.
-- Local OCR requires both the `pytesseract` Python package and the `tesseract` executable. If either is missing, OCR artifacts record a skipped status.
+- Local OCR requires both the `pytesseract` Python package and the `tesseract` executable. The runtime checks common `tesseract` locations on macOS, Windows, and PATH. If either is missing, OCR artifacts record a skipped status.
 - Scripts are cross-platform Python, but example paths may use Windows `D:/...` because many source design packages are Windows-authored.
 - Runtime output avoids absolute source paths in result artifacts. Use the original command line or file inventory root to map relative paths back to local files.
 

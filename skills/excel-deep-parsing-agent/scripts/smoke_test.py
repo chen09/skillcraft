@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -13,6 +12,8 @@ def main() -> int:
     skill_root = Path(__file__).resolve().parents[1]
     if str(skill_root) not in sys.path:
         sys.path.insert(0, str(skill_root))
+
+    from runtime.executables import find_executable
 
     report = {
         "python": {"status": "ok", "detail": f"{sys.implementation.name} {sys.version.split()[0]}"},
@@ -34,8 +35,8 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             report["imports"]["optional"][module] = {"status": "missing_or_failed", "detail": str(exc)}
 
-    for exe in ("markitdown", "soffice"):
-        path = shutil.which(exe)
+    for exe in ("markitdown", "soffice", "tesseract"):
+        path = find_executable(exe)
         report["executables"][exe] = {"status": "ok" if path else "missing", "detail": "available" if path else ""}
 
     print(json.dumps(report, ensure_ascii=False, indent=2))

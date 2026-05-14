@@ -42,7 +42,8 @@ Input/output safety:
 - fail fast when `--input-path` does not exist or is not a regular file/directory
 - use a separate output directory; if it is inside the input tree, generated output is excluded from the next inventory pass
 - artifact filenames are derived from relative source paths plus a short hash to avoid collisions between same-named files
-- legacy `.xls/.doc/.ppt` parsing depends on `soffice` conversion and must be reported as limited when conversion is unavailable
+- legacy `.xls/.doc/.ppt` parsing depends on LibreOffice conversion and must be reported as limited when conversion is unavailable
+- executable discovery checks PATH plus common macOS and Windows install locations for LibreOffice and Tesseract
 
 ## Standard Workflow
 

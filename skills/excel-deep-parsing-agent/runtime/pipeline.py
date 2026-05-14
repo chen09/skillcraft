@@ -16,6 +16,8 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from runtime.executables import find_executable
+
 
 SUBPROCESS_TIMEOUT_SECONDS = 120
 MAX_PDF_OCR_PAGES = 25
@@ -286,7 +288,7 @@ def _redact_paths(log: str, *paths: Path) -> str:
 
 
 def _convert_with_soffice(source: Path, target_ext: str, work_dir: Path) -> Path | None:
-    soffice = shutil.which("soffice")
+    soffice = find_executable("soffice")
     if not soffice:
         return None
     returncode, _log = _run_tool(
@@ -669,7 +671,7 @@ def export_visual_assets(source_file: Path, workbook_analysis: WorkbookAnalysis,
                     )
                 except Exception as exc:
                     workbook_analysis.extraction_warnings.append(f"image export failed on {sheet.title}#{idx}: {exc}")
-    soffice = shutil.which("soffice")
+    soffice = find_executable("soffice")
     if soffice:
         returncode, _log = _run_tool(
             [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(source_file)],
@@ -690,7 +692,7 @@ def export_visual_assets(source_file: Path, workbook_analysis: WorkbookAnalysis,
 def export_document_visuals(source_file: Path, output_dir: Path) -> list[Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     exported: list[Path] = []
-    soffice = shutil.which("soffice")
+    soffice = find_executable("soffice")
     if not soffice:
         return exported
     returncode, _log = _run_tool(

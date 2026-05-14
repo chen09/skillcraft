@@ -29,7 +29,7 @@ They use the same legacy conversion pattern via LibreOffice:
 - `.doc -> .docx`
 - `.ppt -> .pptx`
 
-If `soffice` is unavailable or conversion fails, the document is still listed, but deep structure extraction is limited and warnings are written.
+The runtime checks common `soffice` locations on macOS, Windows, and PATH. If LibreOffice is unavailable or conversion fails, the document is still listed, but deep structure extraction is limited and warnings are written.
 
 ## Q4. Why are OCR results weak?
 
@@ -42,7 +42,7 @@ Recommended, not always mandatory:
 - `soffice`: improves legacy conversion (`.xls/.doc/.ppt`) and PDF export
 - `tesseract`: enables local OCR extraction
 
-The Python package `pytesseract` is also required for local OCR. If either package or executable is missing, OCR result files use `skipped` or `failed` status.
+The Python package `pytesseract` is also required for local OCR. The runtime checks common `tesseract` locations on macOS, Windows, and PATH. If either package or executable is missing, OCR result files use `skipped` or `failed` status.
 
 ## Q5. What is the minimum output set to share with stakeholders?
 

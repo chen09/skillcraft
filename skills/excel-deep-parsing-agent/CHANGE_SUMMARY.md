@@ -7,6 +7,7 @@
 - Changed shared runtime artifacts to use relative source/output paths and removed absolute interpreter paths from environment probes.
 - Added a subprocess wrapper with a 120-second timeout for `markitdown` and `soffice`.
 - Added a 25-page cap for local PDF OCR.
+- Added executable discovery across PATH plus common macOS and Windows install locations for LibreOffice and Tesseract.
 - Escaped Markdown table cells in `file_inventory.md`.
 - Clarified dependencies, optional tool behavior, proxy/offline install options, and legacy `.xls/.doc/.ppt` conversion limits.
 - Updated `VERSION` to `0.2.1` and added a `0.2.1` changelog entry.

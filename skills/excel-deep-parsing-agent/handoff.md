@@ -55,8 +55,8 @@ Start from [`troubleshooting.md`](troubleshooting.md) and keep warnings visible 
 ## 7) Known limitations to share with users
 
 - `markitdown` base package may miss format extras (`xlsx`, `docx`), causing markdown-only failures.
-- `soffice` missing means no `.xls/.doc/.ppt` conversion and no PDF export.
-- `tesseract` or Python `pytesseract` missing means OCR outputs are skipped or limited.
+- LibreOffice missing means no `.xls/.doc/.ppt` conversion and no PDF export. The runtime checks common `soffice` locations on macOS, Windows, and PATH.
+- `tesseract` or Python `pytesseract` missing means OCR outputs are skipped or limited. The runtime checks common `tesseract` locations on macOS, Windows, and PATH.
 
 Optional reinforcement:
 

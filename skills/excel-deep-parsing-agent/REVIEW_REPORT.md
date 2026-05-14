@@ -36,7 +36,7 @@ No Critical findings remained after review.
 - File path: `runtime/pipeline.py`
 - Risk: Untrusted or malformed Office files could cause `markitdown` or `soffice` to hang indefinitely. Large PDFs could also create unbounded OCR work.
 - Reproduction: static review found `subprocess.run(...)` calls without `timeout=` and PDF OCR iterating over all pages.
-- Fix applied: all `markitdown` and `soffice` calls now go through a timeout wrapper with a 120-second limit. PDF OCR is capped at 25 pages and records a skipped residual-pages warning.
+- Fix applied: all `markitdown` and `soffice` calls now go through a timeout wrapper with a 120-second limit. PDF OCR is capped at 25 pages and records a skipped residual-pages warning. LibreOffice and Tesseract discovery checks PATH plus common macOS and Windows install locations.
 
 #### M-3 Dependency and offline install behavior were underspecified
 

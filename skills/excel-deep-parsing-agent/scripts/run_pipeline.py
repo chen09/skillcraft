@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -17,8 +16,10 @@ def _skill_root() -> Path:
 
 
 def _probe_environment() -> dict[str, dict[str, str]]:
+    from runtime.executables import find_executable
+
     def _state(executable: str) -> dict[str, str]:
-        path = shutil.which(executable)
+        path = find_executable(executable)
         return {"status": "ok" if path else "missing", "detail": "available" if path else ""}
 
     probe: dict[str, dict[str, str]] = {

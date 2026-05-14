@@ -7,6 +7,7 @@
 - Removed absolute local paths from shared environment, markdown, OCR, and structured result artifacts.
 - Added subprocess timeouts for `markitdown` and `soffice` calls.
 - Added PDF OCR page cap to avoid unbounded local OCR runs.
+- Added cross-platform executable discovery for common LibreOffice and Tesseract install locations.
 - Documented offline/proxy dependency installation and legacy Office conversion limits.
 
 ## 0.2.0 - Office-wide deep parsing upgrade
