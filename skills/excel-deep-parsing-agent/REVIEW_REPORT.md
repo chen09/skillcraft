@@ -22,6 +22,13 @@ No Critical findings remained after review.
 - Reproduction: before the fix, the mixed Office sample produced only one `deep_reading_notes/sample.md` for three Office files.
 - Fix applied: artifact names now use the relative source path plus an 8-character SHA-256 prefix fragment, for example `sample.xlsx__c7ad6cd5.md`. Markdown, visual export, attachment staging, OCR, and deep-reading outputs use collision-safe names. OCR JSON filenames also include the relative visual export path hash so same-named exports in different folders do not overwrite each other.
 
+#### H-3 Malformed or mismatched `.xlsx` aborted the full pipeline during visual export
+
+- File path: `runtime/pipeline.py`, `scripts/smoke_test.py`, `troubleshooting.md`
+- Risk: A real workbook with `.xlsx` extension but non-OOXML content could stop before `workbook_inventory.md`, `structured_data.json`, and `ocr_results/vision_queue.jsonl` were written. This made mixed workbook validation fail hard instead of preserving per-file evidence.
+- Reproduction: Windows heavy-vision rerun on a real `RPA02-2002-0225` workbook exited `2` with `File is not a zip file`; a local malformed `.xlsx` regression reproduced the same vulnerable class.
+- Fix applied: openpyxl-based visual export is now fail-soft, container preflight hints classify non-ZIP `.xlsx` inputs, workbook-level visual exports are preserved for Vision queueing even when cell parsing fails, and smoke tests now include a malformed `.xlsx` regression.
+
 ### Medium
 
 #### M-1 Shared artifacts exposed absolute local paths
@@ -73,6 +80,13 @@ No Critical findings remained after review.
 - Reproduction: design review of the render path showed workbook PDF export only called `soffice`.
 - Fix applied: added Windows Microsoft Excel automation fallback through `pywin32` first and PowerShell COM second for workbook PDF export and `.xls -> .xlsx` conversion.
 
+#### M-8 MarkItDown depended too much on ambient CLI PATH
+
+- File path: `runtime/pipeline.py`, `troubleshooting.md`
+- Risk: A virtual environment could have `markitdown[all]` installed while the `markitdown` executable was not visible through PATH, causing markdown first-pass extraction to be skipped or fail unexpectedly.
+- Reproduction: Windows feedback identified executable path/environment sensitivity in the heavy-run setup model.
+- Fix applied: markdown extraction now tries the discovered CLI first, then falls back to `sys.executable -m markitdown`, keeping the fallback pinned to the active Python environment.
+
 ### Low
 
 #### L-1 Markdown table cells were not escaped
@@ -90,6 +104,7 @@ GO for cross-team distribution after applying this hardening patch.
 
 - `markitdown`, `soffice`, `pytesseract`, and `pypdfium2` are optional in the tested environment; missing tools are reported and affected stages degrade instead of failing the whole run. Local OCR can use the `tesseract` executable without `pytesseract`.
 - `.xls` deep parsing can use LibreOffice or Windows Microsoft Excel automation; `.doc/.ppt` still depend on successful LibreOffice conversion.
+- Mismatched-extension, corrupt, or encrypted `.xlsx` files may still have no cell-level parse; the pipeline now records the reason and continues, and Windows Excel automation may still produce a workbook PDF if Excel can open the file.
 - Full sheet rendering of DrawingML layouts requires LibreOffice, Windows Microsoft Excel automation, or another renderer; without one the runtime preserves media/object evidence and queues a blocked render task.
 - Archive expansion remains intentionally out of scope; archives are inventoried as pending confirmation.
 - File type selection is extension-driven first, then parser-validated by the relevant library.
@@ -98,12 +113,14 @@ GO for cross-team distribution after applying this hardening patch.
 ## Verification Evidence
 
 - Smoke test command: `<python> scripts/smoke_test.py`
-- Smoke test result: exit `0`; core imports `openpyxl` and `runtime.pipeline` passed; optional `pytesseract`, `pypdfium2`, `markitdown`, and `soffice` were reported missing where applicable; `tesseract` executable was available; Windows Excel automation was `not_applicable` on this macOS run.
+- Smoke test result: exit `0`; core imports `openpyxl` and `runtime.pipeline` passed; optional `pytesseract`, `pypdfium2`, `markitdown`, and `soffice` were reported missing where applicable; malformed `.xlsx` fail-soft regression passed; `tesseract` executable was available; Windows Excel automation was `not_applicable` on this macOS run.
+- Malformed `.xlsx` pipeline regression command: `<python> scripts/run_pipeline.py --input-path <directory_with_non_ooxml_xlsx> --output-root <output_root> --no-ocr`
+- Malformed `.xlsx` pipeline regression result: exit `0`; standard artifacts existed and `workbook_inventory.md` recorded `File is not a zip file` with a non-OOXML container hint.
 - Sample pipeline command: `<python> scripts/run_pipeline.py --input-path <sample_input> --output-root <sample_output>`
 - Sample pipeline result: exit `0`; processed `sample.xlsx`, `sample.docx`, and `sample.pptx`.
 - Windows Excel automation static check: PASS; the generated PowerShell script contains Excel COM creation, PDF export, and `.xlsx` SaveAs branches.
-- RPC sample pipeline command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-markitdown`
-- RPC sample pipeline result: exit `0`; recorded 53 media parts, 9 drawing XML files, 200 shapes, 22 connectors, 111 OCR successes, and 113 Vision queue tasks.
+- RPC sample pipeline command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-ocr`
+- RPC sample pipeline result: exit `0`; recorded 53 media parts, 9 drawing XML files, 200 shapes, 22 connectors, and 113 Vision queue tasks.
 - Artifact checklist result:
   - `file_inventory.md`: OK
   - `workbook_inventory.md`: OK

@@ -232,6 +232,7 @@ class WorkbookAnalysis:
     sheet_analyses: list[SheetAnalysis]
     extraction_warnings: list[str] = field(default_factory=list)
     visual_preflight: WorkbookVisualPreflight | None = None
+    workbook_object_records: list[ObjectRecord] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -360,6 +361,24 @@ def _sniff_image_suffix(data: bytes) -> str | None:
     if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
         return ".webp"
     return None
+
+
+def _office_container_hint(path: Path) -> str:
+    try:
+        header = path.read_bytes()[:512]
+    except Exception as exc:
+        return f"container preflight unavailable: {exc}"
+    if header.startswith(b"PK\x03\x04") or header.startswith(b"PK\x05\x06") or header.startswith(b"PK\x07\x08"):
+        return "OOXML ZIP container detected"
+    if header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return (
+            "not an OOXML ZIP container; OLE compound header detected "
+            "(possible encrypted workbook, legacy .xls, or mismatched extension)"
+        )
+    stripped = header.lstrip(b"\xef\xbb\xbf\r\n\t ")
+    if stripped[:20].lower().startswith((b"<html", b"<!doctype html")):
+        return "not an OOXML ZIP container; HTML/XML-like workbook content detected"
+    return "not an OOXML ZIP container; file may be corrupt or saved with a mismatched extension"
 
 
 def _rels_path_for(part_path: str) -> str:
@@ -818,31 +837,39 @@ def extract_to_markdown(
     source_label: str | None = None,
     output_label: str | None = None,
 ) -> MarkdownExtractionResult:
-    cli = shutil.which("markitdown")
-    if cli is None:
-        return MarkdownExtractionResult(
-            source_file=source_label or source_file.name,
-            markdown_path=None,
-            status="skipped",
-            log="markitdown CLI not found in PATH",
+    commands: list[tuple[str, list[str]]] = []
+    cli = find_executable("markitdown") or shutil.which("markitdown")
+    if cli is not None:
+        commands.append(("markitdown CLI", [cli, str(source_file), "-o", str(output_file)]))
+    commands.append(
+        (
+            "python -m markitdown",
+            [sys.executable, "-m", "markitdown", str(source_file), "-o", str(output_file)],
         )
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    returncode, log = _run_tool(
-        [cli, str(source_file), "-o", str(output_file)],
     )
-    log = _redact_paths(log, source_file, output_file)
-    if returncode == 0 and output_file.exists():
-        return MarkdownExtractionResult(
-            source_label or source_file.name,
-            output_label or output_file.name,
-            "success",
-            log.strip(),
-        )
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    logs: list[str] = []
+    for label, command in commands:
+        returncode, log = _run_tool(command)
+        log = _redact_paths(log, source_file, output_file)
+        if returncode == 0 and output_file.exists():
+            return MarkdownExtractionResult(
+                source_label or source_file.name,
+                output_label or output_file.name,
+                "success",
+                log.strip(),
+            )
+        detail = log or f"{label} exited {returncode}"
+        logs.append(f"{label}: {detail.strip()}")
+    combined_log = "\n".join(logs).strip()
+    status = "failed"
+    if cli is None and ("No module named markitdown" in combined_log or "No module named 'markitdown'" in combined_log):
+        status = "skipped"
     return MarkdownExtractionResult(
         source_label or source_file.name,
         None,
-        "failed",
-        (log or "markitdown failed").strip(),
+        status,
+        combined_log or "markitdown unavailable",
     )
 
 
@@ -912,6 +939,7 @@ def _analyze_xlsx_like(path: Path, source_label: str) -> WorkbookAnalysis:
         wb = load_workbook(filename=path, data_only=False, read_only=False, keep_links=False)
         wb_data = load_workbook(filename=path, data_only=True, read_only=False, keep_links=False)
     except Exception as exc:
+        hint = _office_container_hint(path)
         return WorkbookAnalysis(
             source_label,
             Path(source_label).name,
@@ -919,7 +947,7 @@ def _analyze_xlsx_like(path: Path, source_label: str) -> WorkbookAnalysis:
             [],
             {},
             [],
-            [f"workbook load failed: {exc}"],
+            [f"workbook load failed: {exc}; {hint}"],
             visual_preflight,
         )
 
@@ -1216,35 +1244,41 @@ def export_visual_assets(source_file: Path, workbook_analysis: WorkbookAnalysis,
     output_dir.mkdir(parents=True, exist_ok=True)
     if source_file.suffix.lower() in {".xlsx", ".xlsm"}:
         exported.extend(_extract_raw_office_media(source_file, output_dir))
-        wb = load_workbook(filename=source_file, data_only=False, read_only=False, keep_links=False)
-        sheet_image_exports: dict[str, list[Path]] = {}
-        for sheet in wb.worksheets:
-            for idx, image in enumerate(getattr(sheet, "_images", []), start=1):
-                image_path = output_dir / f"{_artifact_stem(f'{source_file.name}/{sheet.title}/img{idx}')}.png"
-                try:
-                    image_path.write_bytes(image._data())
-                    sheet_image_exports.setdefault(sheet.title, []).append(image_path)
+        try:
+            wb = load_workbook(filename=source_file, data_only=False, read_only=False, keep_links=False)
+        except Exception as exc:
+            workbook_analysis.extraction_warnings.append(
+                f"embedded image export via openpyxl skipped: {exc}; {_office_container_hint(source_file)}"
+            )
+        else:
+            sheet_image_exports: dict[str, list[Path]] = {}
+            for sheet in wb.worksheets:
+                for idx, image in enumerate(getattr(sheet, "_images", []), start=1):
+                    image_path = output_dir / f"{_artifact_stem(f'{source_file.name}/{sheet.title}/img{idx}')}.png"
+                    try:
+                        image_path.write_bytes(image._data())
+                        sheet_image_exports.setdefault(sheet.title, []).append(image_path)
+                        exported.append(
+                            ObjectRecord(
+                                object_type="image_export",
+                                sheet_name=sheet.title,
+                                description="Embedded image extracted from workbook",
+                                export_path=str(image_path),
+                            )
+                        )
+                    except Exception as exc:
+                        workbook_analysis.extraction_warnings.append(f"image export failed on {sheet.title}#{idx}: {exc}")
+            for sheet_name, images in sheet_image_exports.items():
+                contact = _create_contact_sheet(sheet_name, images, output_dir / "contact_sheets")
+                if contact:
                     exported.append(
                         ObjectRecord(
-                            object_type="image_export",
-                            sheet_name=sheet.title,
-                            description="Embedded image extracted from workbook",
-                            export_path=str(image_path),
+                            object_type="image_contact_sheet",
+                            sheet_name=sheet_name,
+                            description="Contact sheet of embedded images from one worksheet",
+                            export_path=str(contact),
                         )
                     )
-                except Exception as exc:
-                    workbook_analysis.extraction_warnings.append(f"image export failed on {sheet.title}#{idx}: {exc}")
-        for sheet_name, images in sheet_image_exports.items():
-            contact = _create_contact_sheet(sheet_name, images, output_dir / "contact_sheets")
-            if contact:
-                exported.append(
-                    ObjectRecord(
-                        object_type="image_contact_sheet",
-                        sheet_name=sheet_name,
-                        description="Contact sheet of embedded images from one worksheet",
-                        export_path=str(contact),
-                    )
-                )
     if source_file.suffix.lower() in {".xlsx", ".xlsm", ".xls"}:
         candidate, backend = _convert_spreadsheet(source_file, ".pdf", output_dir)
         if candidate is not None:
@@ -1450,37 +1484,43 @@ def _vision_prompt(asset_type: str) -> str:
 def build_vision_tasks(workbooks: list[WorkbookAnalysis]) -> list[VisionTask]:
     tasks: list[VisionTask] = []
     seen: set[tuple[str, str]] = set()
+
+    def add_task(book: WorkbookAnalysis, obj: ObjectRecord, scope: str) -> bool:
+        if not obj.export_path:
+            return False
+        asset_path = obj.export_path
+        key = (book.source_file, asset_path)
+        if key in seen:
+            return False
+        seen.add(key)
+        ext = Path(asset_path).suffix.lower()
+        asset_type = obj.object_type
+        status = "queued" if ext in OCR_IMAGE_EXTS or ext == ".pdf" else "blocked_requires_render_or_conversion"
+        reason = "visual asset extracted for OCR/Vision"
+        if status != "queued":
+            reason = f"asset extension {ext or '(none)'} is not directly OCR-safe; render/convert before Vision"
+        tasks.append(
+            VisionTask(
+                task_id=f"vision-{len(tasks) + 1:04d}",
+                source_file=book.source_file,
+                scope=scope,
+                asset_path=asset_path,
+                asset_type=asset_type,
+                reason=reason,
+                prompt=_vision_prompt(asset_type),
+                status=status,
+            )
+        )
+        return asset_type == "sheet_pdf_export"
+
     for book in workbooks:
         exported_pdf = False
+        for obj in book.workbook_object_records:
+            exported_pdf = add_task(book, obj, "workbook") or exported_pdf
         for sheet in book.sheet_analyses:
             for obj in sheet.object_records:
-                if not obj.export_path:
-                    continue
-                asset_path = obj.export_path
-                key = (book.source_file, asset_path)
-                if key in seen:
-                    continue
-                seen.add(key)
-                ext = Path(asset_path).suffix.lower()
-                asset_type = obj.object_type
-                if asset_type == "sheet_pdf_export":
-                    exported_pdf = True
-                status = "queued" if ext in OCR_IMAGE_EXTS or ext == ".pdf" else "blocked_requires_render_or_conversion"
-                reason = "visual asset extracted for OCR/Vision"
-                if status != "queued":
-                    reason = f"asset extension {ext or '(none)'} is not directly OCR-safe; render/convert before Vision"
-                tasks.append(
-                    VisionTask(
-                        task_id=f"vision-{len(tasks) + 1:04d}",
-                        source_file=book.source_file,
-                        scope="workbook" if obj.sheet_name == "*" else obj.sheet_name,
-                        asset_path=asset_path,
-                        asset_type=asset_type,
-                        reason=reason,
-                        prompt=_vision_prompt(asset_type),
-                        status=status,
-                    )
-                )
+                scope = "workbook" if obj.sheet_name == "*" else obj.sheet_name
+                exported_pdf = add_task(book, obj, scope) or exported_pdf
         if book.visual_preflight and book.visual_preflight.requires_sheet_render and not exported_pdf:
             tasks.append(
                 VisionTask(
@@ -1553,9 +1593,14 @@ def write_workbook_inventory(path: Path, books: list[WorkbookAnalysis]) -> None:
                 f"- hidden_sheets: {', '.join(book.hidden_sheets) if book.hidden_sheets else '(none)'}",
                 f"- named_ranges: {len(book.named_ranges)}",
                 f"- warnings: {len(book.extraction_warnings)}",
+                f"- workbook_visual_exports: {len(book.workbook_object_records)}",
                 "",
             ]
         )
+        for warning in book.extraction_warnings[:10]:
+            lines.append(f"- warning_detail: {warning}")
+        if book.extraction_warnings:
+            lines.append("")
         if book.visual_preflight:
             visual = book.visual_preflight
             lines.extend(
@@ -1825,6 +1870,9 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             for obj in exported:
                 if obj.export_path:
                     obj.export_path = _display_output_path(Path(obj.export_path), config.output_root)
+            workbook.workbook_object_records.extend(
+                [obj for obj in exported if obj.sheet_name == "*" or not workbook.sheet_analyses]
+            )
             for sheet_idx, sheet in enumerate(workbook.sheet_analyses):
                 sheet.object_records.extend(
                     [

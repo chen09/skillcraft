@@ -43,12 +43,13 @@ Actions:
 
 Symptoms:
 
-- markdown extraction status is `skipped` with `markitdown CLI not found`.
+- markdown extraction status is `skipped` or `failed`.
+- log mentions `markitdown CLI` or `python -m markitdown`.
 
 Actions:
 
-1. install markitdown
-2. ensure executable is in PATH
+1. install MarkItDown into the same Python environment used to run the pipeline
+2. prefer `python -m pip install "markitdown[all]"`
 3. rerun pipeline or markdown stage
 
 ## Visual export missing PDF
@@ -85,12 +86,15 @@ Actions:
 Symptoms:
 
 - workbook has warnings in analysis output.
+- `.xlsx` warning says `File is not a zip file` or `not an OOXML ZIP container`.
 
 Actions:
 
 1. record exact file and failure reason
-2. continue processing remaining files
-3. mark summary sections as `不确定` where evidence is missing
+2. check whether the file is encrypted, a legacy `.xls` renamed to `.xlsx`, HTML saved with `.xlsx`, or corrupt
+3. on Windows, verify Excel can open the file and let the pipeline attempt PDF export through Excel automation
+4. continue processing remaining files
+5. mark summary sections as `不确定` where evidence is missing
 
 ## Duplicate-looking artifact names
 

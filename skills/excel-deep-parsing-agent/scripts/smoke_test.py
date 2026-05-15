@@ -7,6 +7,39 @@ import json
 import platform
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+
+def _run_malformed_workbook_regression(skill_root: Path) -> dict[str, str]:
+    if str(skill_root) not in sys.path:
+        sys.path.insert(0, str(skill_root))
+    from runtime.pipeline import (
+        ObjectRecord,
+        analyze_workbook,
+        build_vision_tasks,
+        export_visual_assets,
+    )
+
+    with TemporaryDirectory(prefix="excel_skill_smoke_") as temp_dir:
+        temp_root = Path(temp_dir)
+        bad_workbook = temp_root / "not_ooxml.xlsx"
+        bad_workbook.write_bytes(b"this is not an OOXML zip workbook")
+        analysis = analyze_workbook(bad_workbook, "not_ooxml.xlsx")
+        export_visual_assets(bad_workbook, analysis, temp_root / "visuals")
+    ok = any("workbook load failed" in warning for warning in analysis.extraction_warnings)
+    ok = ok and any(
+        "embedded image export via openpyxl skipped" in warning for warning in analysis.extraction_warnings
+    )
+    analysis.workbook_object_records.append(
+        ObjectRecord(
+            object_type="sheet_pdf_export",
+            sheet_name="*",
+            export_path="visual_exports/not_ooxml.pdf",
+        )
+    )
+    vision_tasks = build_vision_tasks([analysis])
+    ok = ok and len(vision_tasks) == 1 and vision_tasks[0].status == "queued"
+    return {"status": "ok" if ok else "failed", "detail": "malformed .xlsx handled without aborting"}
 
 
 def main() -> int:
@@ -43,11 +76,15 @@ def main() -> int:
         "status": "available_if_excel_installed" if platform.system() == "Windows" else "not_applicable",
         "detail": "uses pywin32 when installed, otherwise PowerShell COM on Windows",
     }
+    report["regressions"] = {
+        "malformed_xlsx_fail_soft": _run_malformed_workbook_regression(skill_root),
+    }
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
     failed_core = [k for k, v in report["imports"]["core"].items() if v["status"] != "ok"]
-    return 1 if failed_core else 0
+    failed_regressions = [k for k, v in report["regressions"].items() if v["status"] != "ok"]
+    return 1 if failed_core or failed_regressions else 0
 
 
 if __name__ == "__main__":

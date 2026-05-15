@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4 - Windows heavy-vision fail-soft follow-up
+
+- Fixed malformed or mismatched-extension `.xlsx` files aborting the full pipeline during visual export.
+- Added container preflight hints for non-OOXML `.xlsx` inputs, including OLE compound and HTML-like files.
+- Preserved workbook-level visual exports in the Vision queue even when cell-level workbook parsing fails.
+- Added `python -m markitdown` fallback so MarkItDown can run from the active virtual environment when the CLI is not on PATH.
+- Added a smoke regression for malformed `.xlsx` fail-soft handling.
+
 ## 0.2.3 - Windows Excel render fallback
 
 - Added Windows Microsoft Excel automation fallback for workbook PDF export when LibreOffice is unavailable.
