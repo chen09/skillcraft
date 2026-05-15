@@ -87,14 +87,16 @@ Symptoms:
 
 - workbook has warnings in analysis output.
 - `.xlsx` warning says `File is not a zip file` or `not an OOXML ZIP container`.
+- `workbook_inventory.md` or `structured_data.json` shows `status_code: blocked_non_ooxml_container`.
 
 Actions:
 
 1. record exact file and failure reason
 2. check whether the file is encrypted, a legacy `.xls` renamed to `.xlsx`, HTML saved with `.xlsx`, or corrupt
 3. on Windows, verify Excel can open the file and let the pipeline attempt PDF export through Excel automation
-4. continue processing remaining files
-5. mark summary sections as `不确定` where evidence is missing
+4. treat `pipeline_execution_status: success` as runtime success only; check `workbook_extraction_status` and `vision_readiness_status` before release validation
+5. continue processing remaining files
+6. mark summary sections as `不确定` where evidence is missing
 
 ## Duplicate-looking artifact names
 

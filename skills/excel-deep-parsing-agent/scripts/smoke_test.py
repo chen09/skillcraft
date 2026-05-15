@@ -6,8 +6,16 @@ from __future__ import annotations
 import json
 import platform
 import sys
+import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+
+PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff"
+    b"\xff?\x00\x05\xfe\x02\xfeA\xe2%\xb5\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 def _run_malformed_workbook_regression(skill_root: Path) -> dict[str, str]:
@@ -26,7 +34,9 @@ def _run_malformed_workbook_regression(skill_root: Path) -> dict[str, str]:
         bad_workbook.write_bytes(b"this is not an OOXML zip workbook")
         analysis = analyze_workbook(bad_workbook, "not_ooxml.xlsx")
         export_visual_assets(bad_workbook, analysis, temp_root / "visuals")
-    ok = any("workbook load failed" in warning for warning in analysis.extraction_warnings)
+    ok = analysis.extraction_status == "fail_soft"
+    ok = ok and analysis.status_code == "blocked_non_ooxml_container"
+    ok = ok and any("workbook load failed" in warning for warning in analysis.extraction_warnings)
     ok = ok and any(
         "embedded image export via openpyxl skipped" in warning for warning in analysis.extraction_warnings
     )
@@ -40,6 +50,36 @@ def _run_malformed_workbook_regression(skill_root: Path) -> dict[str, str]:
     vision_tasks = build_vision_tasks([analysis])
     ok = ok and len(vision_tasks) == 1 and vision_tasks[0].status == "queued"
     return {"status": "ok" if ok else "failed", "detail": "malformed .xlsx handled without aborting"}
+
+
+def _run_visual_workbook_queue_regression(skill_root: Path) -> dict[str, str]:
+    if str(skill_root) not in sys.path:
+        sys.path.insert(0, str(skill_root))
+    from openpyxl import Workbook
+    from runtime.pipeline import (
+        analyze_workbook,
+        assign_workbook_vision_statuses,
+        build_vision_tasks,
+        export_visual_assets,
+    )
+
+    with TemporaryDirectory(prefix="excel_skill_smoke_") as temp_dir:
+        temp_root = Path(temp_dir)
+        workbook_path = temp_root / "visual.xlsx"
+        wb = Workbook()
+        wb.active["A1"] = "visual evidence workbook"
+        wb.save(workbook_path)
+        with zipfile.ZipFile(workbook_path, "a") as zf:
+            zf.writestr("xl/media/image1.png", PNG_1X1)
+        analysis = analyze_workbook(workbook_path, "visual.xlsx")
+        exported = export_visual_assets(workbook_path, analysis, temp_root / "visuals")
+        analysis.workbook_object_records.extend([item for item in exported if item.sheet_name == "*"])
+        vision_tasks = build_vision_tasks([analysis])
+        assign_workbook_vision_statuses([analysis], vision_tasks)
+    ok = analysis.extraction_status == "processed"
+    ok = ok and any(task.status == "queued" for task in vision_tasks)
+    ok = ok and analysis.vision_status == "ready"
+    return {"status": "ok" if ok else "failed", "detail": "processable visual workbook queues Vision task"}
 
 
 def main() -> int:
@@ -78,6 +118,7 @@ def main() -> int:
     }
     report["regressions"] = {
         "malformed_xlsx_fail_soft": _run_malformed_workbook_regression(skill_root),
+        "processable_visual_workbook_vision_queue": _run_visual_workbook_queue_regression(skill_root),
     }
 
     print(json.dumps(report, ensure_ascii=False, indent=2))

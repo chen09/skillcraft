@@ -35,7 +35,7 @@ skillcraft/
 
 ## Featured Release: Excel Deep Parsing Agent
 
-`skills/excel-deep-parsing-agent` is currently hardened for cross-team Office parsing distribution. Current skill version: `0.2.4`.
+`skills/excel-deep-parsing-agent` is currently hardened for cross-team Office parsing distribution. Current skill version: `0.2.5`.
 
 Use it when an agent needs to inspect Excel/Office files beyond plain cell extraction, especially workbooks with SAP screenshots, DrawingML shapes, connectors, grouped objects, embedded images, or sheets that need PDF/image rendering before LLM Vision review.
 
@@ -46,6 +46,7 @@ Key behavior:
 - On Windows, workbook PDF export and `.xls -> .xlsx` conversion use LibreOffice first when present, then Microsoft Excel automation through `pywin32` or PowerShell COM.
 - For heavy LLM Vision mode, run the pipeline with `--no-ocr` and feed every queued asset in `ocr_results/vision_queue.jsonl` to the external Vision-capable model.
 - Malformed, encrypted, corrupt, or extension-mismatched `.xlsx` files fail soft: the pipeline records warnings and still writes the standard artifact set instead of aborting the whole run.
+- `structured_data.json`, `workbook_inventory.md`, and `final_summary.md` include machine-readable extraction and Vision readiness status so orchestrators do not treat fail-soft as full extraction success.
 
 Quick validation:
 

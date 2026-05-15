@@ -13,6 +13,7 @@ Portable Cursor Skill for deep Office analysis with traceable outputs.
 - Run OCR over visual exports
 - Produce `ocr_results/vision_queue.jsonl` for screenshots, flowcharts, sheet renders, and blocked visual follow-up
 - Produce human summary and machine-readable JSON
+- Report workbook extraction and Vision readiness status separately so fail-soft runs are visible to orchestrators
 
 ## Directory
 
@@ -80,6 +81,7 @@ Operator choices:
 ## Known limitations
 
 - File type handling is extension-driven first, then parser-validated. Unsupported or corrupt files are reported with warnings instead of treated as success.
+- Malformed, encrypted, corrupt, or extension-mismatched `.xlsx` files can fail soft. Check `status_code` for values such as `blocked_non_ooxml_container` before treating a run as fully extracted.
 - `markitdown` is a useful first-pass extractor, not the source of truth for screenshots, shapes, connectors, or object-heavy sheets.
 - `markitdown` base install may not include all format extras (`xlsx`, `docx`), so markdown extraction can fail for some files while deep parsing still continues.
 - `.xls` can be converted through LibreOffice or Windows Microsoft Excel automation. `.doc/.ppt` still require LibreOffice conversion before deep parsing.
@@ -108,6 +110,15 @@ On Windows, installing requirements includes `pywin32`; if it is unavailable, th
 - `deep_reading_notes/`
 - `final_summary.md`
 - `structured_data.json`
+
+Important machine-readable status fields:
+
+- `summary.pipeline_execution_status`: whether the pipeline completed.
+- `summary.workbook_extraction_status`: `success`, `partial`, `failed`, or `not_applicable`.
+- `summary.vision_readiness_status`: `success`, `partial`, `blocked`, or `not_applicable`.
+- `workbook_results[].extraction_status`: `processed`, `fail_soft`, or `unsupported`.
+- `workbook_results[].status_code`: for example `processed`, `blocked_non_ooxml_container`, `blocked_conversion_unavailable`, or `unsupported_spreadsheet_extension`.
+- `workbook_results[].vision_status`: `ready`, `partial_ready_with_blocked_assets`, `blocked_non_processable_workbook`, `blocked_missing_render_backend`, `blocked_requires_render_or_conversion`, `not_ready`, or `not_needed`.
 
 ## Documentation map
 

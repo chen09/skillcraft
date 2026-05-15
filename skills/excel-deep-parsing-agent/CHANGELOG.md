@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.5 - Heavy-validation status semantics
+
+- Added machine-readable workbook extraction status fields: `extraction_status`, `status_code`, `container_status`, and `vision_status`.
+- Added summary-level pass criteria counters under `structured_data.json` and `final_summary.md`.
+- Marked fail-soft workbooks without usable visual evidence as `blocked_non_processable_workbook` for Vision readiness.
+- Marked workbooks with both queued and blocked visual assets as `partial_ready_with_blocked_assets` instead of full Vision readiness success.
+- Added explicit `blocked_non_ooxml_container` status for non-OOXML or mismatched-extension `.xlsx` inputs.
+- Added smoke regressions for malformed `.xlsx` fail-soft status and processable visual workbook Vision queue generation.
+- Updated reports so orchestrators can distinguish pipeline execution success from extraction success and Vision readiness.
+
 ## 0.2.4 - Windows heavy-vision fail-soft follow-up
 
 - Fixed malformed or mismatched-extension `.xlsx` files aborting the full pipeline during visual export.

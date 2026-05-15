@@ -29,6 +29,13 @@ No Critical findings remained after review.
 - Reproduction: Windows heavy-vision rerun on a real `RPA02-2002-0225` workbook exited `2` with `File is not a zip file`; a local malformed `.xlsx` regression reproduced the same vulnerable class.
 - Fix applied: openpyxl-based visual export is now fail-soft, container preflight hints classify non-ZIP `.xlsx` inputs, workbook-level visual exports are preserved for Vision queueing even when cell parsing fails, and smoke tests now include a malformed `.xlsx` regression.
 
+#### H-4 Fail-soft workbooks could look like full extraction success to orchestrators
+
+- File path: `runtime/pipeline.py`, `scripts/smoke_test.py`, `README.md`, `troubleshooting.md`
+- Risk: An upper-layer validation harness that checked only process exit code `0` could treat a fail-soft workbook as fully extracted, even when the workbook had no usable cell or Vision evidence.
+- Reproduction: Windows re-review correctly noted that the fail-soft fix prevented aborts but did not expose a machine-readable unprocessed status.
+- Fix applied: workbook outputs now include `extraction_status`, `status_code`, `container_status`, and `vision_status`; `structured_data.json` and `final_summary.md` include summary counters for pipeline execution, workbook extraction, and Vision readiness. Non-OOXML `.xlsx` is explicitly reported as `blocked_non_ooxml_container`, fail-soft workbooks without usable visual evidence are marked `blocked_non_processable_workbook`, and workbooks with mixed queued/blocked visual assets are marked `partial_ready_with_blocked_assets`.
+
 ### Medium
 
 #### M-1 Shared artifacts exposed absolute local paths
@@ -115,12 +122,12 @@ GO for cross-team distribution after applying this hardening patch.
 - Smoke test command: `<python> scripts/smoke_test.py`
 - Smoke test result: exit `0`; core imports `openpyxl` and `runtime.pipeline` passed; optional `pytesseract`, `pypdfium2`, `markitdown`, and `soffice` were reported missing where applicable; malformed `.xlsx` fail-soft regression passed; `tesseract` executable was available; Windows Excel automation was `not_applicable` on this macOS run.
 - Malformed `.xlsx` pipeline regression command: `<python> scripts/run_pipeline.py --input-path <directory_with_non_ooxml_xlsx> --output-root <output_root> --no-ocr`
-- Malformed `.xlsx` pipeline regression result: exit `0`; standard artifacts existed and `workbook_inventory.md` recorded `File is not a zip file` with a non-OOXML container hint.
+- Malformed `.xlsx` pipeline regression result: exit `0`; standard artifacts existed; `structured_data.json` recorded `status_code: blocked_non_ooxml_container`, `vision_status: blocked_non_processable_workbook`, `workbook_extraction_status: failed`, and `vision_readiness_status: blocked`.
 - Sample pipeline command: `<python> scripts/run_pipeline.py --input-path <sample_input> --output-root <sample_output>`
 - Sample pipeline result: exit `0`; processed `sample.xlsx`, `sample.docx`, and `sample.pptx`.
 - Windows Excel automation static check: PASS; the generated PowerShell script contains Excel COM creation, PDF export, and `.xlsx` SaveAs branches.
 - RPC sample pipeline command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-ocr`
-- RPC sample pipeline result: exit `0`; recorded 53 media parts, 9 drawing XML files, 200 shapes, 22 connectors, and 113 Vision queue tasks.
+- RPC sample pipeline result: exit `0`; recorded 53 media parts, 9 drawing XML files, 200 shapes, 22 connectors, and 113 Vision queue tasks. On macOS without a renderer the workbook is `processed` with `vision_status: partial_ready_with_blocked_assets`.
 - Artifact checklist result:
   - `file_inventory.md`: OK
   - `workbook_inventory.md`: OK

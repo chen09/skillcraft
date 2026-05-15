@@ -233,6 +233,10 @@ class WorkbookAnalysis:
     extraction_warnings: list[str] = field(default_factory=list)
     visual_preflight: WorkbookVisualPreflight | None = None
     workbook_object_records: list[ObjectRecord] = field(default_factory=list)
+    extraction_status: str = "processed"
+    status_code: str = "processed"
+    container_status: str = "not_applicable"
+    vision_status: str = "not_evaluated"
 
 
 @dataclass(slots=True)
@@ -262,6 +266,22 @@ class OCRResult:
 
 
 @dataclass(slots=True)
+class PipelineSummary:
+    pipeline_execution_status: str = "success"
+    workbook_extraction_status: str = "not_applicable"
+    vision_readiness_status: str = "not_applicable"
+    spreadsheet_targets: int = 0
+    document_targets: int = 0
+    processable_workbooks: int = 0
+    fail_soft_workbooks: int = 0
+    blocked_workbooks: int = 0
+    vision_ready_workbooks: int = 0
+    vision_partial_workbooks: int = 0
+    vision_blocked_workbooks: int = 0
+    vision_not_needed_workbooks: int = 0
+
+
+@dataclass(slots=True)
 class PipelineResult:
     created_at: str
     input_path: str
@@ -273,6 +293,7 @@ class PipelineResult:
     ocr_results: list[OCRResult] = field(default_factory=list)
     vision_tasks: list[VisionTask] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    summary: PipelineSummary = field(default_factory=PipelineSummary)
 
     @classmethod
     def bootstrap(cls, input_path: Path, output_root: Path) -> "PipelineResult":
@@ -364,21 +385,25 @@ def _sniff_image_suffix(data: bytes) -> str | None:
 
 
 def _office_container_hint(path: Path) -> str:
+    return _office_container_status(path)[1]
+
+
+def _office_container_status(path: Path) -> tuple[str, str]:
     try:
         header = path.read_bytes()[:512]
     except Exception as exc:
-        return f"container preflight unavailable: {exc}"
+        return "container_preflight_unavailable", f"container preflight unavailable: {exc}"
     if header.startswith(b"PK\x03\x04") or header.startswith(b"PK\x05\x06") or header.startswith(b"PK\x07\x08"):
-        return "OOXML ZIP container detected"
+        return "ooxml_zip", "OOXML ZIP container detected"
     if header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
-        return (
+        return "non_ooxml_ole", (
             "not an OOXML ZIP container; OLE compound header detected "
             "(possible encrypted workbook, legacy .xls, or mismatched extension)"
         )
     stripped = header.lstrip(b"\xef\xbb\xbf\r\n\t ")
     if stripped[:20].lower().startswith((b"<html", b"<!doctype html")):
-        return "not an OOXML ZIP container; HTML/XML-like workbook content detected"
-    return "not an OOXML ZIP container; file may be corrupt or saved with a mismatched extension"
+        return "non_ooxml_html", "not an OOXML ZIP container; HTML/XML-like workbook content detected"
+    return "non_ooxml_unknown", "not an OOXML ZIP container; file may be corrupt or saved with a mismatched extension"
 
 
 def _rels_path_for(part_path: str) -> str:
@@ -934,12 +959,17 @@ def parse_csv_as_sheet(csv_path: Path) -> SheetAnalysis:
 
 
 def _analyze_xlsx_like(path: Path, source_label: str) -> WorkbookAnalysis:
+    container_status, container_hint = _office_container_status(path)
     visual_preflight = inspect_xlsx_visuals(path)
     try:
         wb = load_workbook(filename=path, data_only=False, read_only=False, keep_links=False)
         wb_data = load_workbook(filename=path, data_only=True, read_only=False, keep_links=False)
     except Exception as exc:
-        hint = _office_container_hint(path)
+        status_code = (
+            "blocked_non_ooxml_container"
+            if container_status.startswith("non_ooxml")
+            else "workbook_parse_failed"
+        )
         return WorkbookAnalysis(
             source_label,
             Path(source_label).name,
@@ -947,8 +977,11 @@ def _analyze_xlsx_like(path: Path, source_label: str) -> WorkbookAnalysis:
             [],
             {},
             [],
-            [f"workbook load failed: {exc}; {hint}"],
+            [f"workbook load failed: {exc}; {container_hint}"],
             visual_preflight,
+            extraction_status="fail_soft",
+            status_code=status_code,
+            container_status=container_status,
         )
 
     named_ranges: dict[str, str] = {}
@@ -1081,6 +1114,9 @@ def _analyze_xlsx_like(path: Path, source_label: str) -> WorkbookAnalysis:
         sheet_analyses,
         warnings,
         visual_preflight,
+        extraction_status="processed",
+        status_code="processed",
+        container_status=container_status,
     )
 
 
@@ -1104,11 +1140,23 @@ def analyze_workbook(path: Path, source_label: str | None = None) -> WorkbookAna
                     {},
                     [],
                     [".xls conversion to .xlsx failed; install/configure LibreOffice soffice or Windows Microsoft Excel automation."],
+                    extraction_status="fail_soft",
+                    status_code="blocked_conversion_unavailable",
                 )
             analyzed = _analyze_xlsx_like(converted, label)
             analyzed.extraction_warnings.append(f"source .xls converted to .xlsx for deep parse via {backend}")
             return analyzed
-    return WorkbookAnalysis(label, Path(label).name, [], [], {}, [], [f"unsupported spreadsheet extension: {suffix}"])
+    return WorkbookAnalysis(
+        label,
+        Path(label).name,
+        [],
+        [],
+        {},
+        [],
+        [f"unsupported spreadsheet extension: {suffix}"],
+        extraction_status="unsupported",
+        status_code="unsupported_spreadsheet_extension",
+    )
 
 
 def analyze_document(path: Path, source_label: str | None = None) -> DocumentAnalysis:
@@ -1537,6 +1585,105 @@ def build_vision_tasks(workbooks: list[WorkbookAnalysis]) -> list[VisionTask]:
     return tasks
 
 
+def _workbook_has_visual_evidence(book: WorkbookAnalysis) -> bool:
+    if book.workbook_object_records:
+        return True
+    if any(sheet.object_records for sheet in book.sheet_analyses):
+        return True
+    visual = book.visual_preflight
+    if visual is None:
+        return False
+    return bool(
+        visual.media_count
+        or visual.drawing_xml_count
+        or visual.chart_xml_count
+        or visual.embedded_object_count
+        or visual.requires_sheet_render
+    )
+
+
+def assign_workbook_vision_statuses(workbooks: list[WorkbookAnalysis], tasks: list[VisionTask]) -> None:
+    tasks_by_source: dict[str, list[VisionTask]] = {}
+    for task in tasks:
+        tasks_by_source.setdefault(task.source_file, []).append(task)
+    for book in workbooks:
+        has_visual_evidence = _workbook_has_visual_evidence(book)
+        if not has_visual_evidence and book.extraction_status != "processed":
+            book.vision_status = "blocked_non_processable_workbook"
+            continue
+        if not has_visual_evidence:
+            book.vision_status = "not_needed"
+            continue
+        book_tasks = tasks_by_source.get(book.source_file, [])
+        has_queued = any(task.status == "queued" for task in book_tasks)
+        has_blocked = any(task.status.startswith("blocked_") for task in book_tasks)
+        if has_queued and has_blocked:
+            book.vision_status = "partial_ready_with_blocked_assets"
+        elif has_queued:
+            book.vision_status = "ready"
+        elif any(task.status == "blocked_missing_render_backend" for task in book_tasks):
+            book.vision_status = "blocked_missing_render_backend"
+        elif any(task.status == "blocked_requires_render_or_conversion" for task in book_tasks):
+            book.vision_status = "blocked_requires_render_or_conversion"
+        else:
+            book.vision_status = "not_ready"
+
+
+def update_pipeline_summary(result: PipelineResult, spreadsheet_targets: int, document_targets: int) -> None:
+    books = result.workbook_results
+    processable = [book for book in books if book.extraction_status == "processed"]
+    fail_soft = [book for book in books if book.extraction_status == "fail_soft"]
+    blocked = [book for book in books if book.extraction_status != "processed"]
+    vision_ready = [book for book in books if book.vision_status == "ready"]
+    vision_partial = [book for book in books if book.vision_status == "partial_ready_with_blocked_assets"]
+    vision_not_needed = [book for book in books if book.vision_status == "not_needed"]
+    non_blocking_vision_statuses = {
+        "ready",
+        "partial_ready_with_blocked_assets",
+        "not_needed",
+        "not_evaluated",
+    }
+    vision_blocked = [
+        book
+        for book in books
+        if book.vision_status not in non_blocking_vision_statuses
+    ]
+
+    if not books:
+        workbook_status = "not_applicable"
+    elif not blocked:
+        workbook_status = "success"
+    elif processable:
+        workbook_status = "partial"
+    else:
+        workbook_status = "failed"
+
+    visual_books = [book for book in books if book.vision_status != "not_needed"]
+    if not visual_books:
+        vision_status = "not_applicable"
+    elif not vision_blocked and not vision_partial and len(vision_ready) == len(visual_books):
+        vision_status = "success"
+    elif vision_ready or vision_partial:
+        vision_status = "partial"
+    else:
+        vision_status = "blocked"
+
+    result.summary = PipelineSummary(
+        pipeline_execution_status="success",
+        workbook_extraction_status=workbook_status,
+        vision_readiness_status=vision_status,
+        spreadsheet_targets=spreadsheet_targets,
+        document_targets=document_targets,
+        processable_workbooks=len(processable),
+        fail_soft_workbooks=len(fail_soft),
+        blocked_workbooks=len(blocked),
+        vision_ready_workbooks=len(vision_ready),
+        vision_partial_workbooks=len(vision_partial),
+        vision_blocked_workbooks=len(vision_blocked),
+        vision_not_needed_workbooks=len(vision_not_needed),
+    )
+
+
 def write_vision_queue(path: Path, tasks: list[VisionTask]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -1592,6 +1739,10 @@ def write_workbook_inventory(path: Path, books: list[WorkbookAnalysis]) -> None:
                 f"- sheet_order: {', '.join(book.sheet_order) if book.sheet_order else '(none)'}",
                 f"- hidden_sheets: {', '.join(book.hidden_sheets) if book.hidden_sheets else '(none)'}",
                 f"- named_ranges: {len(book.named_ranges)}",
+                f"- extraction_status: {book.extraction_status}",
+                f"- status_code: {book.status_code}",
+                f"- container_status: {book.container_status}",
+                f"- vision_status: {book.vision_status}",
                 f"- warnings: {len(book.extraction_warnings)}",
                 f"- workbook_visual_exports: {len(book.workbook_object_records)}",
                 "",
@@ -1714,6 +1865,10 @@ def write_deep_notes(output_dir: Path, books: list[WorkbookAnalysis], docs: list
     output_dir.mkdir(parents=True, exist_ok=True)
     for book in books:
         lines = [f"# deep_reading: {book.workbook_name}", "", "## Observations"]
+        lines.append(
+            f"- extraction_status={book.extraction_status}; status_code={book.status_code}; "
+            f"vision_status={book.vision_status}."
+        )
         if not book.sheet_analyses:
             lines.append("- No readable sheet content.")
         for sheet in book.sheet_analyses:
@@ -1762,13 +1917,41 @@ def _purpose(workbooks: list[WorkbookAnalysis], docs: list[DocumentAnalysis]) ->
     return "推定：业务说明或设计资料"
 
 
-def write_final_summary(path: Path, books: list[WorkbookAnalysis], docs: list[DocumentAnalysis]) -> None:
+def write_final_summary(
+    path: Path,
+    books: list[WorkbookAnalysis],
+    docs: list[DocumentAnalysis],
+    summary: PipelineSummary | None = None,
+) -> None:
     lines = ["# final_summary", ""]
+    if summary is not None:
+        lines.extend(
+            [
+                "## run_status",
+                f"- pipeline_execution_status: {summary.pipeline_execution_status}",
+                f"- workbook_extraction_status: {summary.workbook_extraction_status}",
+                f"- vision_readiness_status: {summary.vision_readiness_status}",
+                f"- spreadsheet_targets: {summary.spreadsheet_targets}",
+                f"- document_targets: {summary.document_targets}",
+                f"- processable_workbooks: {summary.processable_workbooks}",
+                f"- fail_soft_workbooks: {summary.fail_soft_workbooks}",
+                f"- blocked_workbooks: {summary.blocked_workbooks}",
+                f"- vision_ready_workbooks: {summary.vision_ready_workbooks}",
+                f"- vision_partial_workbooks: {summary.vision_partial_workbooks}",
+                f"- vision_blocked_workbooks: {summary.vision_blocked_workbooks}",
+                f"- vision_not_needed_workbooks: {summary.vision_not_needed_workbooks}",
+                "",
+            ]
+        )
     for book in books:
         lines.extend(
             [
                 f"## {book.workbook_name}",
                 f"- 文件名: {book.workbook_name}",
+                f"- extraction_status: {book.extraction_status}",
+                f"- status_code: {book.status_code}",
+                f"- container_status: {book.container_status}",
+                f"- vision_status: {book.vision_status}",
                 f"- 文件目的: {_purpose([book], [])}",
                 "- 适用业务/系统: 不确定",
                 f"- 主要sheet: {', '.join(book.sheet_order) if book.sheet_order else '(none)'}",
@@ -1911,11 +2094,18 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             display_root=config.output_root,
         )
     result.vision_tasks = build_vision_tasks(result.workbook_results)
+    assign_workbook_vision_statuses(result.workbook_results, result.vision_tasks)
+    update_pipeline_summary(result, len(spreadsheet_rows), len(document_rows))
     write_vision_queue(config.ocr_results_path / "vision_queue.jsonl", result.vision_tasks)
 
     write_workbook_inventory(config.output_root / "workbook_inventory.md", result.workbook_results)
     write_document_inventory(config.output_root / "document_inventory.md", result.document_results)
     write_deep_notes(config.deep_notes_path, result.workbook_results, result.document_results)
-    write_final_summary(config.output_root / "final_summary.md", result.workbook_results, result.document_results)
+    write_final_summary(
+        config.output_root / "final_summary.md",
+        result.workbook_results,
+        result.document_results,
+        result.summary,
+    )
     write_structured_json(config.output_root / "structured_data.json", result)
     return result

@@ -5,6 +5,8 @@
 - Added RPC-style Excel visual corpus handling: ZIP/DrawingML preflight, media extension sniffing, raw media extraction, per-sheet contact sheets, shape/object text sampling, and Vision queue output.
 - Added Windows Microsoft Excel automation fallback for workbook PDF export and `.xls -> .xlsx` conversion when LibreOffice is unavailable.
 - Added Windows heavy-vision follow-up fixes: malformed or mismatched-extension `.xlsx` files now fail soft during visual export, non-OOXML container hints are recorded, and workbook-level visual exports still enter the Vision queue when cell parsing fails.
+- Added machine-readable status semantics so orchestrators can distinguish pipeline execution success from workbook extraction success and Vision readiness.
+- Added partial Vision readiness semantics when a workbook has queued assets plus blocked assets that still require conversion/rendering.
 - Added MarkItDown fallback through `python -m markitdown` so markdown extraction can use the active virtual environment even when the CLI is not on PATH.
 - Added Tesseract CLI fallback so local OCR can run when `pytesseract` is absent but the `tesseract` executable is available.
 - Added input validation so missing or invalid `--input-path` fails with exit code `2` instead of generating empty success artifacts.
@@ -16,7 +18,7 @@
 - Added executable discovery across PATH plus common macOS and Windows install locations for LibreOffice, PowerShell, and Tesseract.
 - Escaped Markdown table cells in `file_inventory.md`.
 - Clarified dependencies, optional tool behavior, proxy/offline install options, and legacy `.xls/.doc/.ppt` conversion limits.
-- Updated `VERSION` to `0.2.4` and added `0.2.1` through `0.2.4` changelog entries.
+- Updated `VERSION` to `0.2.5` and added `0.2.1` through `0.2.5` changelog entries.
 
 ## Why It Changed
 
@@ -28,6 +30,7 @@
 - Preserve object-heavy Excel evidence that normal openpyxl parsing cannot represent, especially SAP screenshots, flowcharts, connectors, and DrawingML shapes.
 - Reduce Windows-specific release risk for teams that have Microsoft Excel installed but not LibreOffice.
 - Keep one malformed or mislabeled workbook from invalidating a multi-workbook heavy Vision validation run.
+- Avoid false-positive orchestration results when a workbook is fail-soft rather than truly processed.
 
 ## Validation Results
 
@@ -38,10 +41,13 @@
   - Result: exit `0`; core imports passed; optional missing dependencies were reported, not hidden; malformed `.xlsx` fail-soft regression passed; Windows Excel automation is `not_applicable` on this macOS run.
 - Malformed `.xlsx` pipeline regression: PASS
   - Command: `<python> scripts/run_pipeline.py --input-path <directory_with_non_ooxml_xlsx> --output-root <output_root> --no-ocr`
-  - Result: exit `0`; standard artifacts were written; `workbook_inventory.md` recorded `File is not a zip file` with a non-OOXML container hint; `ocr_results/vision_queue.jsonl` was present.
+  - Result: exit `0`; standard artifacts were written; `status_code: blocked_non_ooxml_container`, `vision_status: blocked_non_processable_workbook`, `workbook_extraction_status: failed`, and `vision_readiness_status: blocked` were recorded.
+- Visual workbook queue regression: PASS
+  - Command: `<python> scripts/smoke_test.py`
+  - Result: processable workbook with raw media generated at least one queued Vision task and `vision_status: ready`.
 - RPC Excel sample run: PASS
   - Command: `<python> scripts/run_pipeline.py --input-path <rpc RPA-184 xlsx> --output-root <output_root> --no-ocr`
-  - Result: exit `0`; 53 media entries, 9 drawing XML files, 200 shapes, 22 connectors, and 113 Vision queue tasks were recorded.
+  - Result: exit `0`; 53 media entries, 9 drawing XML files, 200 shapes, 22 connectors, and 113 Vision queue tasks were recorded; the workbook is `processed` and Vision readiness is `partial_ready_with_blocked_assets` on macOS without a render backend.
 - Missing input failure check: PASS
   - Command: `<python> scripts/run_pipeline.py --input-path <missing_input> --output-root <output_root>`
   - Result: exit `2`; output root was not created.
