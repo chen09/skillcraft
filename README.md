@@ -16,6 +16,15 @@ skillcraft/
     │   ├── SKILL.md
     │   ├── references/
     │   └── scripts/
+    ├── artifact-quality-gate/
+    │   ├── SKILL.md
+    │   ├── references/
+    │   └── scripts/
+    ├── handoff-evidence-collector/
+    │   ├── SKILL.md
+    │   ├── examples/
+    │   ├── references/
+    │   └── scripts/
     ├── office-deep-parsing-agent/
     │   ├── SKILL.md
     │   ├── runtime/
@@ -30,6 +39,8 @@ skillcraft/
 ## Current Skills
 
 - `skills/agent-continuity`: Externalize long-running agent task state into `handoff.md`, supporting proactive checkpoints and emergency rescue handoffs.
+- `skills/artifact-quality-gate`: Validate non-trivial artifacts for evidence, verification, real-vs-mock clarity, repair path, and human-openable entrypoints.
+- `skills/handoff-evidence-collector`: Collect, classify, and validate local Codex/Cursor/project handoff files without rewriting source projects.
 - `skills/office-deep-parsing-agent`: Deeply parse mixed Office packages with spreadsheet, document, visual export, OCR, and traceable summary artifacts.
 - `skills/video-research-visual-report`: Convert a video into a researched text review plus visual report. It covers transcript extraction, original-source checking, external opinions, adversarial analysis, information images, long images, and PPT-style outputs.
 
@@ -66,6 +77,8 @@ For Codex-style local skills:
 ```bash
 mkdir -p ~/.codex/skills
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/agent-continuity ~/.codex/skills/agent-continuity
+ln -s /Volumes/WDC2T/Project/skillcraft/skills/artifact-quality-gate ~/.codex/skills/artifact-quality-gate
+ln -s /Volumes/WDC2T/Project/skillcraft/skills/handoff-evidence-collector ~/.codex/skills/handoff-evidence-collector
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/office-deep-parsing-agent ~/.codex/skills/office-deep-parsing-agent
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/video-research-visual-report ~/.codex/skills/video-research-visual-report
 ```
