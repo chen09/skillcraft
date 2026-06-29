@@ -44,6 +44,7 @@ skillcraft/
 - `skills/handoff-evidence-collector`: Collect, classify, and validate local Codex/Cursor/project handoff files without rewriting source projects.
 - `skills/office-deep-parsing-agent`: Deeply parse mixed Office packages with spreadsheet, document, visual export, OCR, and traceable summary artifacts.
 - `skills/powershell-gh-cli`: Run GitHub CLI commands safely from Windows PowerShell using JSON output and PowerShell object handling.
+- `skills/windows-powershell-safety`: Run non-trivial Windows PowerShell commands safely, covering literal matching, native CLI stderr, loop piping, and secret-safe logs.
 - `skills/video-research-visual-report`: Convert a video into a researched text review plus visual report. It covers transcript extraction, original-source checking, external opinions, adversarial analysis, information images, long images, and PPT-style outputs.
 
 ## Featured Release: Office Deep Parsing Agent
@@ -84,6 +85,7 @@ ln -s /Volumes/WDC2T/Project/skillcraft/skills/artifact-quality-gate ~/.codex/sk
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/handoff-evidence-collector ~/.codex/skills/handoff-evidence-collector
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/office-deep-parsing-agent ~/.codex/skills/office-deep-parsing-agent
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/powershell-gh-cli ~/.codex/skills/powershell-gh-cli
+ln -s /Volumes/WDC2T/Project/skillcraft/skills/windows-powershell-safety ~/.codex/skills/windows-powershell-safety
 ln -s /Volumes/WDC2T/Project/skillcraft/skills/video-research-visual-report ~/.codex/skills/video-research-visual-report
 ```
 
