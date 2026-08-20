@@ -106,6 +106,17 @@ python3 skills/handoff-evidence-collector/scripts/handoff_inventory.py \
 
 The collector is read-only against source roots. It writes `Handoff_Inventory.md` and `work/handoff_inventory.json` under the requested output root.
 
+### Handoff Tooling Regression Tests
+
+Run the three standard-library test groups explicitly; root-level default unittest
+discovery does not traverse the hyphenated skill directories:
+
+```bash
+python -m unittest discover -s skills/agent-continuity/tests -p 'test_*.py' -v
+python -m unittest discover -s skills/handoff-evidence-collector/tests -p 'test_*.py' -v
+python -m unittest discover -s skills/artifact-quality-gate/tests -p 'test_*.py' -v
+```
+
 ## Repository Rules
 
 - Keep downloaded videos, generated images, transcripts, and temporary outputs out of git.

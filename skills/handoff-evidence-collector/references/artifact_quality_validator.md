@@ -32,3 +32,10 @@ Thresholds:
 4. Add input/output contract.
 5. Add rollback or repair path.
 6. Add a human-openable entrypoint.
+
+## Non-Scoring Handoff Size Gap
+
+When the validated path is named `handoff.md`, is larger than 150,000 bytes, and has no non-empty
+sibling `handoff-history.md`, add `oversized_handoff_without_history` to the output `gaps` array
+and recommend a verified history split. Do not deduct points or change the score threshold for
+this gap.

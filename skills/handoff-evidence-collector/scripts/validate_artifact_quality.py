@@ -15,6 +15,7 @@ DIMENSIONS = {
     "repair_rollback": 10,
     "human_entrypoint": 5,
 }
+HANDOFF_SIZE_WARN_BYTES = 150_000
 
 
 def hits(text, patterns):
@@ -150,14 +151,39 @@ def score_text(text):
     }
 
 
+def collect_path_gaps(path):
+    if path.name.lower() != "handoff.md":
+        return []
+
+    size_bytes = path.stat().st_size
+    if size_bytes <= HANDOFF_SIZE_WARN_BYTES:
+        return []
+
+    history_path = path.with_name(f"{path.stem}-history{path.suffix}")
+    if history_path.is_file() and history_path.stat().st_size > 0:
+        return []
+
+    return [
+        f"oversized_handoff_without_history: {path} is {size_bytes:,} bytes and has no "
+        f"non-empty sibling {history_path.name}."
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path")
     parser.add_argument("--json-out")
     args = parser.parse_args()
-    text = Path(args.path).read_text(encoding="utf-8", errors="replace")
+    path = Path(args.path)
+    text = path.read_text(encoding="utf-8", errors="replace")
     result = score_text(text)
-    result["path"] = str(Path(args.path).resolve())
+    result["gaps"] = collect_path_gaps(path)
+    if result["gaps"]:
+        result["rework_tasks"].append(
+            "Split the oversized handoff into a small current-truth handoff.md and a non-empty "
+            "verbatim handoff-history.md before the next checkpoint."
+        )
+    result["path"] = str(path.resolve())
     data = json.dumps(result, ensure_ascii=False, indent=2)
     if args.json_out:
         Path(args.json_out).write_text(data + "\n", encoding="utf-8")

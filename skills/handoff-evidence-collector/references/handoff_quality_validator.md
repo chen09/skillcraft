@@ -14,7 +14,10 @@ Use `agent-continuity` validation for real continuity handoffs, while avoiding f
 | cursor_handoff | filename or path contains `cursor` | classify and index only |
 | usage_handoff_or_guide | title says guide, install/run instructions dominate | classify and index only |
 | template_or_reference | under `references/` or contains placeholders | exclude from live handoff counts |
+| handoff_history | filename ends in `-history.md`, outside template/reference locations | preserve as evidence-only history; do not validate as active handoff |
 | handoff_like | file name matches handoff but schema unknown | index and inspect manually |
+
+Template/reference detection takes precedence over history detection.
 
 ## Repair Rules
 

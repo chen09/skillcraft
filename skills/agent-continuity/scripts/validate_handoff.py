@@ -28,6 +28,7 @@ VALID_STATUS_PREFIXES = (
     "NEEDS REVIEW",
     "BLOCKED ON ",
 )
+SIZE_WARN_BYTES = 150_000
 
 
 def main() -> int:
@@ -56,6 +57,15 @@ def main() -> int:
     if len(text.split("## Quick Resume", 1)[1].strip()) < 20:
         print("ERROR: Quick Resume is too short")
         return 1
+
+    size_bytes = path.stat().st_size
+    if size_bytes > SIZE_WARN_BYTES:
+        history_name = f"{path.stem}-history{path.suffix}"
+        print(
+            f"WARN: {path} is {size_bytes:,} bytes. Consider splitting it into a current-truth "
+            f"layer and an unused verbatim history file (start with {history_name}; use a "
+            f"timestamped *-history.md name on collision) before the next checkpoint."
+        )
 
     print(f"OK: {path}")
     return 0

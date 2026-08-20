@@ -42,3 +42,10 @@ For self-distillation, continuity audit, or cross-agent continuation artifacts, 
 - A clear execution label: `real_execution`, `fixture`, `mock`, `dry_run`, `semi_real`, or `candidate_only`.
 - Before/after scores or validator output when the artifact claims a repair or quality improvement.
 - A repair path for failed live handoffs instead of silent edits.
+
+## Non-Scoring Handoff Size Gap
+
+When the validated path is named `handoff.md`, is larger than 150,000 bytes, and has no non-empty
+sibling `handoff-history.md`, add `oversized_handoff_without_history` to the output `gaps` array
+and recommend a verified history split. Do not deduct points or change the score threshold for
+this gap.
