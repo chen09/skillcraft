@@ -24,6 +24,14 @@ Rules:
 - Include evidence: file paths, commands, outputs, decisions.
 - Do not expand scope while checkpointing.
 - Preserve important history; do not overwrite blockers or do-not-retry notes.
+- Before appending, check the handoff size. Above 150,000 bytes, report the size and propose a
+  split before the next checkpoint; do not split automatically.
+- For an approved split, preserve the existing handoff verbatim in the first unused history path:
+  use sibling `<name>-history.md` initially, then collision-safe
+  `<name>-<UTC timestamp>-history.md` paths (plus a numeric suffix if needed). Verify each copy
+  with a byte-for-byte comparison or cryptographic hash before replacing the current handoff,
+  and keep the new `handoff.md` as the small current-truth layer. Never summarize, normalize, or
+  overwrite preserved history.
 
 ### 2. Rescue Mode
 
@@ -98,6 +106,10 @@ Run the validator before claiming the handoff is ready:
 python3 scripts/validate_handoff.py handoff.md
 ```
 
+The validator exits successfully for a structurally valid handoff even when it prints a size
+warning. A warning above 150,000 bytes is a prompt to propose a verified history split, not a
+validation failure.
+
 Use `real_execution` when the handoff describes real task state. Use `fixture`, `mock`, `dry_run`, or `candidate_only` labels in the handoff when it describes examples, tests, or proposed changes. For handoff-first audits that have no inventory yet, mark `evidence_missing` and record the next step to collect one.
 
 ## References
@@ -109,4 +121,5 @@ Use `real_execution` when the handoff describes real task state. Use `fixture`, 
 
 ## Scripts
 
-- `scripts/validate_handoff.py`: validates that a `handoff.md` contains the required sections.
+- `scripts/validate_handoff.py`: validates required sections and warns, without failing, when a
+  handoff exceeds 150,000 bytes.

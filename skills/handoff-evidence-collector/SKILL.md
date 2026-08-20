@@ -29,10 +29,14 @@ For self-distillation and continuity audits, run this skill before writing the r
    - `cursor_handoff`;
    - `usage_handoff_or_guide`;
    - `handoff_like`;
+   - `handoff_history` for evidence-only `<name>-history.md` files outside template/reference
+     locations;
    - `template_or_reference`.
 3. Validate only true `agent_continuity_handoff` files with the project validator.
-4. Keep non-continuity handoffs as evidence, but do not fail them against the continuity template.
-5. Output a Markdown inventory and JSON index with path, kind, mtime, validation status, and recommended next action.
+4. Keep history and other non-continuity handoffs as evidence, but do not fail them against the
+   continuity template.
+5. Output a Markdown inventory and JSON index with path, kind, byte size, oversized status,
+   mtime, validation status, and recommended next action.
 
 ## Bundled Resources
 
@@ -64,6 +68,10 @@ Expected:
 - validates true agent-continuity handoffs only;
 - writes JSON/Markdown inventory to the configured output root;
 - records the configured validator path and whether it exists;
+- records `size`, `size_bytes`, and `oversized` for readable files, using a strict
+  `> 150000`-byte warning threshold;
+- records the threshold itself as `size_warning_threshold_bytes` and surfaces size/oversized
+  columns in Markdown;
 - does not edit project files.
 
 ## Output Contract
@@ -72,7 +80,12 @@ Expected:
 - `Handoff_Inventory.md`
 - validation results for agent-continuity handoffs
 - repair candidates for failed handoffs
-- skip list for templates/reference guides
+- evidence-only records for history files and templates/reference guides
+
+For compatibility, each readable JSON record retains the existing `size` field and also exposes
+the explicit alias `size_bytes`; both are byte counts. `oversized` is true only when the byte count
+is greater than 150,000. Validator stdout/stderr remain unchanged in JSON, while embedded newlines
+and table delimiters are escaped in the Markdown view.
 
 ## Evidence Handling
 
@@ -86,6 +99,9 @@ Concrete local evidence examples include `skills/handoff-evidence-collector/scri
 
 - Every collected file has a kind.
 - Every true agent-continuity handoff has validator output.
+- Every readable file reports byte size and whether it exceeds the warning threshold.
+- `<name>-history.md` files outside template/reference locations are classified as
+  `handoff_history` and are not validated as active handoffs.
 - Templates are not counted as live project handoffs.
 - Cursor handoffs are preserved as evidence but not forced into the agent-continuity schema.
 

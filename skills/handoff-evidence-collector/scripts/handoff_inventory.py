@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -24,11 +25,14 @@ SKIP_DIRS = {
     "data",
 }
 MAX_DEPTH = 6
+SIZE_WARN_BYTES = 150_000
 
 
 def classify(path: Path, text: str) -> str:
     if "references" in path.parts or "template" in path.name.lower():
         return "template_or_reference"
+    if path.name.lower().endswith("-history.md"):
+        return "handoff_history"
     if "## Status" in text and "## Quick Resume" in text and "## Next Minimal Step" in text:
         return "agent_continuity_handoff"
     if "cursor" in path.name.lower() or "/cursor-" in str(path).lower():
@@ -36,6 +40,16 @@ def classify(path: Path, text: str) -> str:
     if "handoff guide" in text.lower() or "install" in text.lower()[:1200]:
         return "usage_handoff_or_guide"
     return "handoff_like"
+
+
+def markdown_cell(value: object) -> str:
+    return (
+        str(value)
+        .replace("|", r"\|")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\n", "<br>")
+    )
 
 
 def main() -> None:
@@ -95,11 +109,17 @@ def main() -> None:
                 "validator": str(validator),
             }
         elif kind == "agent_continuity_handoff":
+            child_env = dict(os.environ)
+            child_env["PYTHONIOENCODING"] = "utf-8"
             proc = subprocess.run(
-                ["python3", str(validator), str(path)],
+                # Reuse this process's interpreter instead of resolving a platform-specific python3.
+                [sys.executable or "python3", str(validator), str(path)],
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=child_env,
                 timeout=10,
             )
             validation = {
@@ -112,6 +132,8 @@ def main() -> None:
             "path": str(path),
             "kind": kind,
             "size": st.st_size,
+            "size_bytes": st.st_size,
+            "oversized": st.st_size > SIZE_WARN_BYTES,
             "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime)),
             "has_status": "## Status" in text,
             "has_quick_resume": "## Quick Resume" in text,
@@ -127,6 +149,7 @@ def main() -> None:
         "validator": str(validator),
         "validator_exists": not validator_missing,
         "execution_mode": args.execution_mode,
+        "size_warning_threshold_bytes": SIZE_WARN_BYTES,
         "counts": counts,
         "records": records,
     }
@@ -147,7 +170,7 @@ def main() -> None:
         "",
         f"Execution mode: `{args.execution_mode}`. This script only reads source roots and writes this inventory to the requested output directory; it does not edit project files. Use `fixture`, `mock`, `dry_run`, `semi_real`, or `candidate_only` instead of `real_execution` whenever the input roots or evidence are not live project evidence.",
         "",
-        "Evidence: each record below includes a concrete file path, mtime, classification, and validator result when applicable. `evidence_missing` is used only when a root is unavailable or a file cannot be read.",
+        "Evidence: each record below includes a concrete file path, byte size, oversized status, mtime, classification, and validator result when applicable. `evidence_missing` is used only when a root is unavailable or a file cannot be read.",
         "",
         "## Input / Workflow / Output",
         "",
@@ -162,7 +185,7 @@ def main() -> None:
         "",
         "1. Bounded walk under input roots.",
         "2. Skip dependency, cache, model, checkpoint, data, and output directories.",
-        "3. Classify matching handoff Markdown files.",
+        "3. Classify matching handoff Markdown files, including evidence-only history files.",
         "4. Validate true `agent_continuity_handoff` files with the configured validator.",
         "5. Write Markdown and JSON inventory artifacts.",
         "",
@@ -176,6 +199,8 @@ def main() -> None:
         "- The script exits 0.",
         "- Every collected file has a `kind` classification.",
         "- Cursor handoffs are indexed but not forced through the agent-continuity validator.",
+        "- History handoffs are indexed as evidence but not validated as active handoffs.",
+        "- Every readable record includes byte size and oversized status.",
         "- Project files are not modified.",
         "",
         "Repair / rollback:",
@@ -197,6 +222,7 @@ def main() -> None:
         "",
         f"Validator: `{validator}`",
         f"Validator status: `{'missing' if validator_missing else 'available'}`",
+        f"Size warning threshold: `{SIZE_WARN_BYTES:,}` bytes (`oversized` is strictly greater).",
         "",
         "## Counts",
         "",
@@ -209,8 +235,8 @@ def main() -> None:
         "",
         "## Records",
         "",
-        "| Path | Kind | mtime | agent-continuity fields | Validation |",
-        "|---|---|---|---|---|",
+        "| Path | Kind | Size (bytes) | Oversized | mtime | agent-continuity fields | Validation |",
+        "|---|---|---:|---|---|---|---|",
     ]
     for rec in records:
         fields = ",".join(
@@ -219,11 +245,18 @@ def main() -> None:
         val = rec.get("validation", {})
         if val.get("attempted"):
             validation = f"rc={val.get('returncode')} {val.get('stdout') or val.get('stderr')}"
+            if val.get("stdout") and val.get("stderr"):
+                validation += f" stderr={val.get('stderr')}"
         elif val.get("reason") == "validator_missing":
             validation = "validator_missing"
         else:
             validation = "not_applicable"
-        lines.append(f"| `{rec['path']}` | {rec.get('kind')} | {rec.get('mtime','')} | {fields} | {validation} |")
+        oversized = rec.get("oversized")
+        oversized_text = "yes" if oversized is True else "no" if oversized is False else ""
+        lines.append(
+            f"| `{markdown_cell(rec['path'])}` | {rec.get('kind')} | {rec.get('size_bytes', '')} | "
+            f"{oversized_text} | {rec.get('mtime','')} | {fields} | {markdown_cell(validation)} |"
+        )
     (out / "Handoff_Inventory.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({"output_root": str(out), "handoffs": len(records), "counts": counts}, ensure_ascii=False, indent=2))
 

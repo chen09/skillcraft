@@ -21,10 +21,15 @@ description: Validate reports, receipts, skill candidates, handoffs, handoff-fir
 3. If score is below 75, return a rework task list instead of accepting the artifact.
 4. If score is 75-89, mark usable with targeted gaps.
 5. If score is 90+, mark ready for review.
+6. For an input named `handoff.md`, record an `oversized_handoff_without_history` gap when the
+   file exceeds 150,000 bytes and has no non-empty sibling `handoff-history.md`. This gap adds a
+   rework task but does not change the score or threshold.
 
 ## Output
 
-Return JSON plus a short Markdown summary. Never claim real validation when only mock, fixture, dry-run, or candidate-only validation was performed.
+Return JSON plus a short Markdown summary. The JSON includes a `gaps` array for non-scoring path
+checks such as oversized handoffs. Never claim real validation when only mock, fixture, dry-run,
+or candidate-only validation was performed.
 
 ## Evidence Handling
 

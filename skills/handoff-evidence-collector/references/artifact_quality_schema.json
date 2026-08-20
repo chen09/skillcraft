@@ -58,6 +58,12 @@
         "type": "string"
       }
     },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "rework_tasks": {
       "type": "array",
       "items": {

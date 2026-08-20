@@ -34,6 +34,15 @@ Record:
 - If a claim has no evidence, mark it as `Assumption`.
 - The `## Status` section must start with `READY TO CONTINUE`, `NEEDS REVIEW`, or `BLOCKED ON <specific blocker>` so `scripts/validate_handoff.py` can verify it.
 - For self-distillation or generated artifact packages, put `handoff.md` in the output directory if that is the safest continuation root.
+- Check the target handoff's byte size before appending. If it exceeds 150,000 bytes, report the
+  size and propose a split before the next checkpoint; do not split automatically.
+- If the split is approved, first preserve the existing file verbatim in the first unused history
+  path: sibling `<name>-history.md` initially, then collision-safe
+  `<name>-<UTC timestamp>-history.md` paths with a numeric suffix if needed. Verify each copy with
+  a byte-for-byte comparison or cryptographic hash. Only then replace the main handoff with a
+  small current-truth layer that retains all required headings. Never summarize, normalize, or
+  overwrite preserved history.
+- Treat `<name>-history.md` as evidence-only history, not as the active continuity entrypoint.
 
 ## Bad Checkpoint
 
