@@ -12,10 +12,10 @@ The current task is still progressing. Update `handoff.md` so another agent can 
 Do not expand scope. Do not perform unrelated work.
 
 Record:
-- original goal
+- original goal, binding user constraints, and completion conditions
 - confirmed current state with evidence
 - recent 1-2 steps completed
-- exact next minimal step
+- exact next minimal step, where to find its evidence, and what result to check
 - next 3 steps
 - unfinished work by priority
 - blockers or risks
@@ -34,15 +34,18 @@ Record:
 - If a claim has no evidence, mark it as `Assumption`.
 - The `## Status` section must start with `READY TO CONTINUE`, `NEEDS REVIEW`, or `BLOCKED ON <specific blocker>` so `scripts/validate_handoff.py` can verify it.
 - For self-distillation or generated artifact packages, put `handoff.md` in the output directory if that is the safest continuation root.
-- Check the target handoff's byte size before appending. If it exceeds 150,000 bytes, report the
-  size and propose a split before the next checkpoint; do not split automatically.
-- If the split is approved, first preserve the existing file verbatim in the first unused history
-  path: sibling `<name>-history.md` initially, then collision-safe
-  `<name>-<UTC timestamp>-history.md` paths with a numeric suffix if needed. Verify each copy with
-  a byte-for-byte comparison or cryptographic hash. Only then replace the main handoff with a
-  small current-truth layer that retains all required headings. Never summarize, normalize, or
-  overwrite preserved history.
-- Treat `<name>-history.md` as evidence-only history, not as the active continuity entrypoint.
+- Measure the existing handoff in bytes before adding checkpoint material. If it already exceeds
+  150,000 bytes or the planned update would exceed that size, report the file and measured size.
+  While proposing a split for approval, make small edits to the sections needed to resume safely.
+  Keep `Status`, `Blockers`, and `Next Minimal Step` current. Sync `Quick Resume` with the new next
+  action and record any new do-not-retry guidance in `Do Not Retry Without New Evidence`.
+- For an approved split, preserve the existing file verbatim in the first unused sibling history
+  path. Start with `<name>-history.md`, then use `<name>-<UTC timestamp>-history.md` or add a numeric
+  suffix on collision. Verify the copy byte-for-byte or by cryptographic hash before replacing the
+  main file. Retain the named sections, unresolved blockers, do-not-retry notes, and the next
+  executable action in the concise `handoff.md`. Link the preserved file in `Files And Artifacts`.
+- Validate the resulting `handoff.md` and report its byte size and the verified history path.
+  Resume from `handoff.md`. Use the preserved history when you need details of earlier work.
 
 ## Bad Checkpoint
 

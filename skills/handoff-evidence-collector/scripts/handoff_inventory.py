@@ -11,6 +11,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ROOTS = [Path.cwd()]
 DEFAULT_VALIDATOR = REPO_ROOT / "skills" / "agent-continuity" / "scripts" / "validate_handoff.py"
+BUNDLED_FIXTURES = Path(__file__).resolve().parents[1] / "examples" / "smoke-root"
+BUNDLED_FIXTURE_LAYOUT = "handoff-evidence-collector/examples/smoke-root"
 SKIP_DIRS = {
     ".git",
     "node_modules",
@@ -74,18 +76,32 @@ def main() -> None:
     validator_missing = not validator.exists()
 
     paths = []
+    scan_gaps = set()
+    scanned_dirs = set()
+
+    def record_walk_error(error: OSError) -> None:
+        scan_gaps.add((str(error.filename), "unreadable_directory"))
+
     for root in roots:
-        if not root.exists():
+        if not root.is_dir():
+            scan_gaps.add((str(root), "unavailable_root"))
             continue
-        for current, dirnames, filenames in os.walk(root, topdown=True):
+        for current, dirnames, filenames in os.walk(root, topdown=True, onerror=record_walk_error):
             cur = Path(current)
-            try:
-                depth = len(cur.relative_to(root).parts)
-            except ValueError:
-                depth = MAX_DEPTH + 1
-            if depth >= MAX_DEPTH:
-                dirnames[:] = []
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            scanned_dirs.add(cur)
+            depth = len(cur.relative_to(root).parts)
+            retained_dirs = []
+            for name in dirnames:
+                directory = cur / name
+                if name in SKIP_DIRS:
+                    scan_gaps.add((str(directory), "excluded_directory"))
+                elif depth >= MAX_DEPTH:
+                    scan_gaps.add((str(directory), "depth_limit"))
+                elif directory.is_symlink():
+                    scan_gaps.add((str(directory), "symlink_directory"))
+                else:
+                    retained_dirs.append(name)
+            dirnames[:] = retained_dirs
             for fname in filenames:
                 low = fname.lower()
                 if low == "handoff.md" or ("handoff" in low and low.endswith(".md")):
@@ -94,11 +110,17 @@ def main() -> None:
 
     records = []
     for path in paths:
+        is_fixture = any(
+            parent == BUNDLED_FIXTURES or parent.match(BUNDLED_FIXTURE_LAYOUT)
+            for parent in path.parents
+        )
+        evidence_mode = "fixture" if is_fixture else args.execution_mode
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
             st = path.stat()
         except Exception as exc:
-            records.append({"path": str(path), "read_error": repr(exc)})
+            scan_gaps.add((str(path), "unreadable_file"))
+            records.append({"path": str(path), "read_error": repr(exc), "evidence_mode": evidence_mode})
             continue
         kind = classify(path, text)
         validation = {"attempted": False}
@@ -131,6 +153,7 @@ def main() -> None:
         records.append({
             "path": str(path),
             "kind": kind,
+            "evidence_mode": evidence_mode,
             "size": st.st_size,
             "size_bytes": st.st_size,
             "oversized": st.st_size > SIZE_WARN_BYTES,
@@ -142,8 +165,17 @@ def main() -> None:
         })
 
     counts = {}
+    evidence_counts = {}
     for rec in records:
         counts[rec.get("kind", "unreadable")] = counts.get(rec.get("kind", "unreadable"), 0) + 1
+        if "read_error" not in rec:
+            mode = rec["evidence_mode"]
+            evidence_counts[mode] = evidence_counts.get(mode, 0) + 1
+    gaps = [
+        {"path": path, "reason": reason}
+        for path, reason in sorted(scan_gaps)
+        if Path(path) not in scanned_dirs
+    ]
     data = {
         "roots": [str(r) for r in roots],
         "validator": str(validator),
@@ -151,6 +183,8 @@ def main() -> None:
         "execution_mode": args.execution_mode,
         "size_warning_threshold_bytes": SIZE_WARN_BYTES,
         "counts": counts,
+        "evidence_counts": evidence_counts,
+        "scan_gaps": gaps,
         "records": records,
     }
     (out / "work" / "handoff_inventory.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -224,7 +258,21 @@ def main() -> None:
         f"Validator status: `{'missing' if validator_missing else 'available'}`",
         f"Size warning threshold: `{SIZE_WARN_BYTES:,}` bytes (`oversized` is strictly greater).",
         "",
-        "## Counts",
+        "## Scan coverage",
+        "",
+        f"Maximum depth: {MAX_DEPTH}. For a handoff inside an excluded directory such as outputs, "
+        "pass the narrow directory containing it as an explicit additional root.",
+        "",
+    ]
+    lines.extend(
+        f"- {gap['reason']}: `{markdown_cell(gap['path'])}`"
+        for gap in gaps
+    )
+    if not gaps:
+        lines.append("- No exclusions or scan errors encountered.")
+    lines += [
+        "",
+        "## Counts by kind across all evidence modes",
         "",
         "| Kind | Count |",
         "|---|---:|",
@@ -233,10 +281,19 @@ def main() -> None:
         lines.append(f"| {key} | {value} |")
     lines += [
         "",
+        "## Readable records by evidence mode",
+        "",
+        "| Evidence mode | Count |",
+        "|---|---:|",
+    ]
+    for mode, count in sorted(evidence_counts.items()):
+        lines.append(f"| {mode} | {count} |")
+    lines += [
+        "",
         "## Records",
         "",
-        "| Path | Kind | Size (bytes) | Oversized | mtime | agent-continuity fields | Validation |",
-        "|---|---|---:|---|---|---|---|",
+        "| Path | Kind | Size (bytes) | Oversized | mtime | Evidence mode | agent-continuity fields | Validation |",
+        "|---|---|---:|---|---|---|---|---|",
     ]
     for rec in records:
         fields = ",".join(
@@ -255,7 +312,7 @@ def main() -> None:
         oversized_text = "yes" if oversized is True else "no" if oversized is False else ""
         lines.append(
             f"| `{markdown_cell(rec['path'])}` | {rec.get('kind')} | {rec.get('size_bytes', '')} | "
-            f"{oversized_text} | {rec.get('mtime','')} | {fields} | {markdown_cell(validation)} |"
+            f"{oversized_text} | {rec.get('mtime','')} | {rec['evidence_mode']} | {fields} | {markdown_cell(validation)} |"
         )
     (out / "Handoff_Inventory.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({"output_root": str(out), "handoffs": len(records), "counts": counts}, ensure_ascii=False, indent=2))

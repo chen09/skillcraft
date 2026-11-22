@@ -23,7 +23,8 @@ For self-distillation and continuity audits, run this skill before writing the r
 1. Bounded scan:
    - walk only approved project roots;
    - skip `.git`, `node_modules`, model/checkpoint/cache/data/output directories;
-   - cap depth unless the user approves a deeper scan.
+   - report skipped directories and unavailable roots. To inspect a handoff below a default
+     exclusion such as `outputs`, pass its containing directory as an explicit `--root`.
 2. Classify each handoff:
    - `agent_continuity_handoff`;
    - `cursor_handoff`;
@@ -36,7 +37,9 @@ For self-distillation and continuity audits, run this skill before writing the r
 4. Keep history and other non-continuity handoffs as evidence, but do not fail them against the
    continuity template.
 5. Output a Markdown inventory and JSON index with path, kind, byte size, oversized status,
-   mtime, validation status, and recommended next action.
+   evidence mode, mtime, validation status, and recommended next action. Use each record's evidence
+   mode when making live-work claims. Bundled smoke examples are `fixture` even when a separately
+   installed collector scans a checkout in `real_execution` mode.
 
 ## Bundled Resources
 
@@ -60,7 +63,7 @@ python3 skills/handoff-evidence-collector/scripts/handoff_inventory.py \
 python3 skills/handoff-evidence-collector/scripts/validate_artifact_quality.py /tmp/handoff-evidence-smoke-output/Handoff_Inventory.md
 ```
 
-Execution mode: `fixture` when using the bundled smoke root, and `real_execution` when scanning real user/project roots. The scanner is read-only against source project roots and writes only to the requested output root. If a future run uses mock, fixture, dry-run, or candidate-only data, label that explicitly in the inventory.
+Execution mode: `fixture` when using the bundled smoke root, and `real_execution` when scanning real user/project roots. The scanner is read-only against source project roots and writes only to the requested output root. Label mock, fixture, dry-run, or candidate-only runs explicitly.
 
 Expected:
 
@@ -86,6 +89,11 @@ For compatibility, each readable JSON record retains the existing `size` field a
 the explicit alias `size_bytes`; both are byte counts. `oversized` is true only when the byte count
 is greater than 150,000. Validator stdout/stderr remain unchanged in JSON, while embedded newlines
 and table delimiters are escaped in the Markdown view.
+
+`counts` includes all records by kind. `evidence_counts` groups readable records by evidence mode.
+`scan_gaps` lists excluded paths, skipped symbolic-link directories, depth limits, unavailable
+roots, and read errors. Check it before using a zero-result scan as evidence that a project has no
+handoff.
 
 ## Evidence Handling
 
