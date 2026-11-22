@@ -24,14 +24,16 @@ Rules:
 - Include evidence: file paths, commands, outputs, decisions.
 - Do not expand scope while checkpointing.
 - Preserve important history; do not overwrite blockers or do-not-retry notes.
-- Before appending, check the handoff size. Above 150,000 bytes, report the size and propose a
-  split before the next checkpoint; do not split automatically.
+- Before adding checkpoint material, measure the current file in bytes. If the file already
+  exceeds 150,000 bytes or the update would take it over that size, keep the status, blockers,
+  next action, and `Quick Resume` current while you propose a history split. See
+  [checkpoint mode](references/checkpoint-mode.md) for the split and validation steps.
 - For an approved split, preserve the existing handoff verbatim in the first unused history path:
   use sibling `<name>-history.md` initially, then collision-safe
   `<name>-<UTC timestamp>-history.md` paths (plus a numeric suffix if needed). Verify each copy
   with a byte-for-byte comparison or cryptographic hash before replacing the current handoff,
-  and keep the new `handoff.md` as the small current-truth layer. Never summarize, normalize, or
-  overwrite preserved history.
+  and keep the new `handoff.md` small. Link the history from `Files And Artifacts` and validate
+  the new handoff. Preserve the history file verbatim.
 
 ### 2. Rescue Mode
 
@@ -60,6 +62,7 @@ Use the structure in `references/handoff-template.md`.
 Required properties:
 
 - The `## Status` section starts exactly with one status label: `READY TO CONTINUE`, `NEEDS REVIEW`, or `BLOCKED ON <specific blocker>`.
+- `## Original Goal` preserves the user's task, binding constraints, and completion conditions.
 - Every major claim includes evidence or is marked `Assumption`.
 - Contains one highest-priority next step and three minimal next steps.
 - Contains do-not-retry guidance for failed actions.
@@ -88,7 +91,7 @@ Workflow:
 
 - A `handoff.md` file at the task root or user-specified output root.
 - `## Status` starts with `READY TO CONTINUE`, `NEEDS REVIEW`, or `BLOCKED ON <specific blocker>`.
-- `## Next Minimal Step` gives one executable next action.
+- `## Next Minimal Step` gives one executable action, the source location needed to start it, and an observable result or check.
 - `## Files And Artifacts` cites concrete paths and validation state.
 - `## Quick Resume` gives a 15-second continuation note.
 

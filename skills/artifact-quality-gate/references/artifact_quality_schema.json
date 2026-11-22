@@ -24,6 +24,26 @@
         "fail"
       ]
     },
+    "score_threshold": {
+      "type": "string",
+      "enum": ["ready", "usable", "draft", "fail"]
+    },
+    "review": {
+      "type": "object",
+      "required": ["local_evidence", "independent_verification", "acceptance"],
+      "properties": {
+        "local_evidence": {
+          "type": "object",
+          "required": ["present", "missing", "unchecked"],
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "independent_verification": {"const": "not_performed"},
+        "acceptance": {"const": "pending"}
+      }
+    },
     "mode": {
       "type": "string"
     },

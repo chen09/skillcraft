@@ -19,10 +19,25 @@ Prevent low-density agent outputs that look complete but do not answer the user'
 
 Thresholds:
 
-- 90-100: ready for review or installation candidate.
+- 90-100: ready for review, subject to the local evidence check.
 - 75-89: usable, but requires targeted improvement.
 - 60-74: draft only.
 - below 60: not acceptable for final delivery.
+
+## Local Evidence and Acceptance
+
+`score_threshold` is the band implied by the heuristic score. `threshold` also reflects local path
+availability. A `ready` score band becomes `usable` when a reference is missing or no referenced
+local path exists. The score itself stays the same.
+
+Use inline or reference-style Markdown links relative to the report, or inline code containing an
+absolute path. Use angle brackets for link targets with spaces. The CLI skips fenced examples and
+lists web URLs and paths in a foreign platform's format as unchecked. `review.local_evidence` lists
+present, missing, and unchecked references.
+
+The CLI reports independent verification as `not_performed` and acceptance as `pending`. Open the
+relevant receipts, confirm the result against the task and its acceptance criteria, and record the
+checks that still need to happen.
 
 ## Rework Task List When Below Threshold
 

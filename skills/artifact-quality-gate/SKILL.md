@@ -20,16 +20,28 @@ description: Validate reports, receipts, skill candidates, handoffs, handoff-fir
    For handoff-first artifacts, specifically check whether the artifact cites `Handoff_Inventory.md` or `handoff_inventory.json`, labels execution mode (`real_execution`, `mock`, `fixture`, `dry_run`, or `candidate_only`), and includes before/after or validator results when it claims a repair or quality improvement.
 3. If score is below 75, return a rework task list instead of accepting the artifact.
 4. If score is 75-89, mark usable with targeted gaps.
-5. If score is 90+, mark ready for review.
+5. For scores of 90 or higher, use the CLI's `threshold` to decide whether the artifact is
+   ready for review. The CLI checks local references separately from the score. It reports
+   `usable` if referenced local paths are missing or there are no checkable local paths.
 6. For an input named `handoff.md`, record an `oversized_handoff_without_history` gap when the
    file exceeds 150,000 bytes and has no non-empty sibling `handoff-history.md`. This gap adds a
    rework task but does not change the score or threshold.
+7. Before reporting acceptance, open the evidence that supports each key claim, confirm the
+   independent check and its result, and list any remaining acceptance items. Report an unavailable
+   check as pending. A path check cannot establish the contents of a file or that a test ran.
+8. When accepting a handoff for a context reset or transfer to another agent or machine, check
+   resumability using only the handoff and its cited sources. Confirm the original constraints
+   and completion conditions, locate the evidence needed for the first action, and verify that
+   its expected result can be checked. Run a read-only probe in the receiving environment when
+   available. If the first action changes state, check a prerequisite without performing the
+   action. Record what was checked and the result, and mark any check you could not run pending.
 
 ## Output
 
-Return JSON plus a short Markdown summary. The JSON includes a `gaps` array for non-scoring path
-checks such as oversized handoffs. Never claim real validation when only mock, fixture, dry-run,
-or candidate-only validation was performed.
+Return JSON plus a short Markdown summary. Report the heuristic `score` and `score_threshold`,
+the evidence-aware `threshold`, missing or unchecked references from `review.local_evidence`,
+and `gaps` such as an oversized handoff. The CLI leaves independent verification and acceptance
+pending. Report the actual verification mode and result separately.
 
 ## Evidence Handling
 

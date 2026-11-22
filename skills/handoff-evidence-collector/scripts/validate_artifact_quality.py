@@ -3,6 +3,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
 
 DIMENSIONS = {
@@ -16,6 +17,21 @@ DIMENSIONS = {
     "human_entrypoint": 5,
 }
 HANDOFF_SIZE_WARN_BYTES = 150_000
+FENCE_LINE = re.compile(r"^[ \t]*(\x60{3,}|~{3,})([^\n]*)$")
+BLOCKQUOTE_PREFIX = re.compile(r"(?: {0,3}>[ \t]?)+")
+LINK_PADDING = r"[ \t]*(?:\n[ \t]*)?"
+LINK_DESTINATION = r"<[^<>\n]+>|(?:\\[()]|\\(?![()])|[^\s()\\]|\([^()\n]*\))+"
+LINK_TITLE = r"""(?:(?:[ \t]*\n[ \t]*|[ \t]+)(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\([^)\n]*\)))?"""
+LINK_DEFINITION = re.compile(
+    rf"(?m)^ {{0,3}}\[([^\]\n]+)\]:{LINK_PADDING}({LINK_DESTINATION}){LINK_TITLE}[ \t]*$"
+)
+LINK_OPEN = r"(?<!\\)(?:\\\\)*\["
+EVIDENCE_REFERENCE = re.compile(
+    r"(?<!\x60)(?P<ticks>\x60+)(?!\x60)(?P<code>[^\n]*?)(?<!\x60)(?P=ticks)(?!\x60)"
+    rf"|{LINK_OPEN}[^\]\n]+\]\({LINK_PADDING}(?P<link>{LINK_DESTINATION}){LINK_TITLE}{LINK_PADDING}\)"
+    rf"|{LINK_OPEN}(?P<label>[^\]\n]+)\](?:\[(?P<ref>[^\]\n]*)\])?(?![\[(])"
+)
+WINDOWS_PATH = re.compile(r"^[A-Za-z]:[\\/]")
 
 
 def hits(text, patterns):
@@ -169,6 +185,90 @@ def collect_path_gaps(path):
     ]
 
 
+def normalize_link_label(label):
+    return " ".join(label.split()).casefold()
+
+
+def outside_fenced_blocks(text):
+    body = []
+    fence = ""
+    fence_depth = 0
+    for line in text.splitlines(keepends=True):
+        quote = BLOCKQUOTE_PREFIX.match(line)
+        depth = quote[0].count(">") if quote else 0
+        content = line[quote.end():] if quote else line
+        if depth < fence_depth:
+            fence = ""
+
+        match = FENCE_LINE.match(content)
+        if fence:
+            if depth == fence_depth and match:
+                marker, info = match.groups()
+                if marker.startswith(fence) and not info.strip():
+                    fence = ""
+            continue
+        if match:
+            marker, info = match.groups()
+            if marker.startswith("~") or "\x60" not in info:
+                fence, fence_depth = marker, depth
+                body.append("\n")
+                continue
+        body.append(line)
+    return "".join(body)
+
+
+def evidence_targets(text):
+    body = outside_fenced_blocks(text)
+    definitions = {}
+    for label, destination in LINK_DEFINITION.findall(body):
+        definitions.setdefault(normalize_link_label(label), destination)
+
+    for match in EVIDENCE_REFERENCE.finditer(LINK_DEFINITION.sub("", body)):
+        code = match["code"]
+        if code is not None:
+            if code.startswith(("/", "\\\\")) or WINDOWS_PATH.match(code):
+                yield code
+            continue
+
+        target = match["link"]
+        if target is None:
+            label = normalize_link_label(match["ref"] or match["label"])
+            target = definitions.get(label)
+        if target:
+            path = target.strip("<>").split("#", 1)[0].split("?", 1)[0]
+            yield unquote(re.sub(r"\\([()])", r"\1", path))
+
+
+def check_evidence_references(text, artifact):
+    present = []
+    missing = []
+    unchecked = []
+    seen = set()
+    for target in evidence_targets(text):
+        if not target:
+            continue
+        is_windows_path = WINDOWS_PATH.match(target)
+        is_uri = not is_windows_path and re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target)
+        is_foreign_path = (is_windows_path or target.startswith("/")) and not Path(target).is_absolute()
+        if is_uri or target.startswith(("//", "\\\\")) or is_foreign_path:
+            if target not in unchecked:
+                unchecked.append(target)
+            continue
+
+        target = re.sub(r":\d+$", "", target)
+        evidence = (artifact.parent / target).absolute()
+        if evidence in seen:
+            continue
+        seen.add(evidence)
+        try:
+            exists = evidence.exists()
+        except (OSError, ValueError):
+            unchecked.append(str(evidence))
+            continue
+        (present if exists else missing).append(str(evidence))
+    return {"present": present, "missing": missing, "unchecked": unchecked}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path")
@@ -177,6 +277,19 @@ def main():
     path = Path(args.path)
     text = path.read_text(encoding="utf-8", errors="replace")
     result = score_text(text)
+    evidence = check_evidence_references(text, path)
+    result["score_threshold"] = result["threshold"]
+    result["review"] = {
+        "local_evidence": evidence,
+        "independent_verification": "not_performed",
+        "acceptance": "pending",
+    }
+    if evidence["missing"]:
+        result["rework_tasks"].append("Resolve missing local references listed in review.local_evidence.")
+    elif not evidence["present"]:
+        result["rework_tasks"].append("Provide a checkable local evidence link or review external evidence separately.")
+    if result["threshold"] == "ready" and (evidence["missing"] or not evidence["present"]):
+        result["threshold"] = "usable"
     result["gaps"] = collect_path_gaps(path)
     if result["gaps"]:
         result["rework_tasks"].append(

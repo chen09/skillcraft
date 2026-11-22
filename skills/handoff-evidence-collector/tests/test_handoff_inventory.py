@@ -40,6 +40,104 @@ FIXTURE_CURSOR_HANDOFF = (
 
 
 class HandoffInventoryTests(unittest.TestCase):
+    def test_separately_installed_collector_recognizes_checkout_fixtures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp).resolve()
+            installed_script = tmp_path / "installed" / "skills" / COLLECTOR.parent.parent.name / "scripts" / COLLECTOR.name
+            installed_script.parent.mkdir(parents=True)
+            shutil.copyfile(COLLECTOR, installed_script)
+            output_root = tmp_path / "inventory"
+
+            subprocess.run(
+                [sys.executable, str(installed_script), "--output-root", str(output_root),
+                 "--root", str(FIXTURE_HANDOFF.parent), "--validator-path", str(VALIDATOR)],
+                check=True, capture_output=True, timeout=20,
+            )
+
+            data = json.loads((output_root / "work" / "handoff_inventory.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["evidence_counts"], {"fixture": 1})
+            self.assertEqual(data["records"][0]["evidence_mode"], "fixture")
+
+    def test_directory_symlink_is_reported_without_following_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp).resolve()
+            root = tmp_path / "source"
+            root.mkdir()
+            link = root / "linked-project"
+            try:
+                link.symlink_to(FIXTURE_HANDOFF.parent, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(f"Directory symlinks unavailable: {error}")
+            output_root = tmp_path / "inventory"
+
+            subprocess.run(
+                [sys.executable, str(COLLECTOR), "--output-root", str(output_root), "--root", str(root)],
+                check=True, capture_output=True, timeout=20,
+            )
+
+            data = json.loads((output_root / "work" / "handoff_inventory.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["records"], [])
+            self.assertIn({"path": str(link), "reason": "symlink_directory"}, data["scan_gaps"])
+
+    def test_mixed_inventory_labels_which_records_are_bundled_fixtures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp).resolve()
+            live_root = tmp_path / "source"
+            live_root.mkdir()
+            live_handoff = live_root / "handoff.md"
+            shutil.copyfile(FIXTURE_HANDOFF, live_handoff)
+            output_root = tmp_path / "inventory"
+
+            subprocess.run(
+                [sys.executable, str(COLLECTOR), "--output-root", str(output_root),
+                 "--root", str(live_root), "--root", str(FIXTURE_HANDOFF.parent),
+                 "--validator-path", str(VALIDATOR)],
+                check=True, capture_output=True, timeout=20,
+            )
+
+            data = json.loads((output_root / "work" / "handoff_inventory.json").read_text(encoding="utf-8"))
+            by_path = {r["path"]: r for r in data["records"]}
+            self.assertEqual(data.get("evidence_counts"), {"real_execution": 1, "fixture": 1})
+            self.assertEqual(by_path[str(live_handoff)].get("evidence_mode"), "real_execution")
+            self.assertEqual(by_path[str(FIXTURE_HANDOFF)].get("evidence_mode"), "fixture")
+            markdown = (output_root / "Handoff_Inventory.md").read_text(encoding="utf-8")
+            self.assertIn(f"| `{FIXTURE_HANDOFF}` | agent_continuity_handoff |", markdown)
+            fixture_line = next(line for line in markdown.splitlines() if line.startswith(f"| `{FIXTURE_HANDOFF}`"))
+            self.assertIn("| fixture |", fixture_line)
+
+    def test_inventory_reports_exclusions_and_walks_an_explicitly_named_output_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp).resolve()
+            source_root = tmp_path / "source"
+            skipped_output = source_root / "outputs"
+            specific_root = skipped_output / "run"
+            specific_root.mkdir(parents=True)
+            handoff = specific_root / "handoff.md"
+            shutil.copyfile(FIXTURE_HANDOFF, handoff)
+            missing = tmp_path / "missing"
+            output_root = tmp_path / "inventory"
+            common = [sys.executable, str(COLLECTOR), "--output-root", str(output_root),
+                      "--root", str(source_root), "--root", str(missing)]
+
+            subprocess.run(common, check=True, capture_output=True, timeout=20)
+            index = output_root / "work" / "handoff_inventory.json"
+            data = json.loads(index.read_text(encoding="utf-8"))
+            self.assertEqual(data["records"], [])
+            self.assertIn({"path": str(skipped_output), "reason": "excluded_directory"}, data.get("scan_gaps", []))
+            self.assertIn({"path": str(missing), "reason": "unavailable_root"}, data["scan_gaps"])
+            markdown = (output_root / "Handoff_Inventory.md").read_text(encoding="utf-8")
+            self.assertIn(f"`{skipped_output}`", markdown)
+
+            subprocess.run(common + ["--root", str(specific_root)], check=True, capture_output=True, timeout=20)
+            data = json.loads(index.read_text(encoding="utf-8"))
+            self.assertEqual([r["path"] for r in data["records"]], [str(handoff)])
+            self.assertIn({"path": str(skipped_output), "reason": "excluded_directory"}, data["scan_gaps"])
+
+            subprocess.run(common + ["--root", str(skipped_output)], check=True, capture_output=True, timeout=20)
+            data = json.loads(index.read_text(encoding="utf-8"))
+            self.assertEqual([r["path"] for r in data["records"]], [str(handoff)])
+            self.assertNotIn({"path": str(skipped_output), "reason": "excluded_directory"}, data["scan_gaps"])
+
     def test_collector_reuses_current_interpreter_when_python3_is_not_on_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
