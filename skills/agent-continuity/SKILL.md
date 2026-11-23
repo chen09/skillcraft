@@ -87,6 +87,23 @@ Workflow:
 6. If blocked, record the blocker, likely cause, and safest next action.
 7. Validate the handoff with `scripts/validate_handoff.py` before claiming it is ready.
 
+### Recheck before resuming across sessions
+
+Record the last verified state with its time and source, the remaining acceptance checks, and
+which external actions are pending authorization. Identify the exact workspace, branch, revision,
+and external target when relevant. Include user corrections that change the task or supersede
+earlier plans. On resume, use a focused read-only probe to recheck the facts that govern the next
+action. If another person or session already completed an external action, record the readback
+and move to the next pending step. If the needed evidence cannot be opened, record the check as
+pending and name the smallest safe action that can recover it.
+
+List explicitly deferred actions under `Unfinished Work`, with who deferred them, when, and the
+condition that would release each hold. Keep the next executable step within current authorization.
+Carry holds forward across handoffs, historical prompts, queued actions, and adjacent task completion.
+When resuming monitoring, record the previous event cursor or last successfully checked time,
+the current monitor identity, and the uncovered interval. Verify a new observation and check
+the gap from that boundary before claiming coverage has resumed.
+
 ## Output Contract
 
 - A `handoff.md` file at the task root or user-specified output root.

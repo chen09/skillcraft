@@ -49,6 +49,26 @@ Use concrete local paths, repo-relative paths, command outputs, source dates, ha
 
 When the artifact is a self-distillation report, receipt, continuity audit, or cross-agent handoff package, treat missing handoff inventory evidence as a targeted rework item rather than accepting a generic summary.
 
+### Claims that an operation ran
+
+When a claim relies on an exported tool receipt, use the approved source and a selector that
+matches exactly one record. If a hash is recorded, compare it with the bytes actually read. Read
+the outcome from the selected record, including operation-specific skipped, blocked, or `notRun`
+fields. Check any quoted receipt against the original. Missing, ambiguous, or mismatched evidence
+leaves the claim pending or rejected. A successful tool response can carry a non-execution result.
+Record it as skipped or pending. An empty result supports an absence claim only within a checked
+scope and time range after the query actually ran.
+Record any fallback as its own check, with its method, executor, and result. A projection or an
+independent readback does not establish that the original call ran.
+
+Record when the original operation happened and when it was reviewed. Label historical readback,
+local replay, current execution, and business acceptance separately. Tie test evidence to the
+revision and environment actually tested and state the remaining verification layer explicitly
+when a passing test covers only part of the requested behavior.
+For a monitor, distinguish a manually successful probe from scheduler execution and actual
+coverage of the claimed interval. Silence, empty output, or an exit code alone cannot establish
+that all intended events were checked.
+
 References: use `references/artifact_quality_validator.md` for the scoring table and `references/artifact_quality_schema.json` for machine-readable results.
 
 ## Smoke Test
@@ -56,8 +76,11 @@ References: use `references/artifact_quality_validator.md` for the scoring table
 Run from the `skillcraft` repository root:
 
 ```sh
-python3 skills/artifact-quality-gate/scripts/validate_artifact_quality.py README.md
+python3 -X utf8 skills/artifact-quality-gate/scripts/validate_artifact_quality.py README.md
 ```
+
+Use the available local Python executable. UTF-8 mode keeps multilingual output readable on
+Windows consoles with a legacy code page.
 
 Execution mode: `real_execution` for the local command; validator mode remains `heuristic_local_validator`. If the input is a mock, fixture, dry-run, or candidate-only artifact, preserve that label in the result summary.
 
