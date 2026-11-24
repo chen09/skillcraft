@@ -15,7 +15,8 @@ Objective: produce a validator-ready continuity entrypoint that lets a new agent
 
 Use when the current agent is still healthy, but the task is long, context is growing, or the user wants restartability.
 
-Goal: update `handoff.md` after meaningful progress, usually every 1-2 steps.
+Update the existing `handoff.md` at a meaningful phase boundary when a verified result,
+decision, blocker, or change to the next action affects how a later session will resume.
 
 Rules:
 
@@ -23,14 +24,17 @@ Rules:
 - Keep the next step minimal and executable.
 - Include evidence: file paths, commands, outputs, decisions.
 - Do not expand scope while checkpointing.
-- Preserve important history; do not overwrite blockers or do-not-retry notes.
+- Preserve unresolved blockers and do-not-retry notes. For a failed attempt that could be
+  repeated, record the action, the observed result, the location of the original evidence,
+  and what new evidence would justify a retry. Label any unconfirmed cause as a hypothesis.
 - Before adding checkpoint material, measure the current file in bytes. If the file already
   exceeds 150,000 bytes or the update would take it over that size, keep the status, blockers,
   next action, and `Quick Resume` current while you propose a history split. See
   [checkpoint mode](references/checkpoint-mode.md) for the split and validation steps.
 - For an approved split, preserve the existing handoff verbatim in the first unused history path:
   use sibling `<name>-history.md` initially, then collision-safe
-  `<name>-<UTC timestamp>-history.md` paths (plus a numeric suffix if needed). Verify each copy
+  `<name>-<UTC timestamp>-history.md` paths, for example `handoff-20261125T012345Z-history.md`.
+  On collision, put a numeric suffix before `-history.md`. Verify each copy
   with a byte-for-byte comparison or cryptographic hash before replacing the current handoff,
   and keep the new `handoff.md` small. Link the history from `Files And Artifacts` and validate
   the new handoff. Preserve the history file verbatim.
@@ -84,7 +88,7 @@ Workflow:
 3. Read only enough context to update it accurately.
 4. Update the handoff using the required structure.
 5. If code or files changed, include exact paths and verification status.
-6. If blocked, record the blocker, likely cause, and safest next action.
+6. If blocked, record the blocker, its confirmed cause or a labeled hypothesis, and the safest next action.
 7. Validate the handoff with `scripts/validate_handoff.py` before claiming it is ready.
 
 ### Recheck before resuming across sessions
@@ -92,10 +96,12 @@ Workflow:
 Record the last verified state with its time and source, the remaining acceptance checks, and
 which external actions are pending authorization. Identify the exact workspace, branch, revision,
 and external target when relevant. Include user corrections that change the task or supersede
-earlier plans. On resume, use a focused read-only probe to recheck the facts that govern the next
-action. If another person or session already completed an external action, record the readback
-and move to the next pending step. If the needed evidence cannot be opened, record the check as
-pending and name the smallest safe action that can recover it.
+earlier plans. A new session starts by reading the current `handoff.md` and using a focused
+read-only probe to check the live facts that govern the next action. If key evidence is missing,
+read only the relevant excerpts from prior chats, files, diffs, or logs. If another person or
+session already completed an external action, record the readback and move to the next pending
+step. If the needed evidence cannot be opened, record the check as pending and name the smallest
+safe action that can recover it.
 
 List explicitly deferred actions under `Unfinished Work`, with who deferred them, when, and the
 condition that would release each hold. Keep the next executable step within current authorization.

@@ -60,7 +60,10 @@ For self-distillation, continuity audit, or cross-agent continuation artifacts, 
 
 ## Non-Scoring Handoff Size Gap
 
-When the validated path is named `handoff.md`, is larger than 150,000 bytes, and has no non-empty
-sibling `handoff-history.md`, add `oversized_handoff_without_history` to the output `gaps` array
-and recommend a verified history split. Do not deduct points or change the score threshold for
-this gap.
+For a `handoff.md` larger than 150,000 bytes, accept a non-empty sibling `handoff-history.md`
+or an inline or reference-style Markdown link to a non-empty timestamped history file in the
+same directory. For example, use `handoff-20261125T012345Z-history.md` or
+`handoff-20261125T012345Z-2-history.md` if the first name is taken. The gap check verifies the
+archive's location, file type, and size. Compare bytes separately to verify a verbatim split.
+When neither form qualifies, add `oversized_handoff_without_history` to the output `gaps` array
+and recommend a verified history split. The gap leaves the score and threshold unchanged.

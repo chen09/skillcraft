@@ -2,6 +2,7 @@
 import argparse
 import json
 import re
+from stat import S_ISREG
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -17,6 +18,11 @@ DIMENSIONS = {
     "human_entrypoint": 5,
 }
 HANDOFF_SIZE_WARN_BYTES = 150_000
+TIMESTAMPED_HISTORY_NAME = re.compile(
+    r"handoff-(?:[0-9]{8}T[0-9]{6}|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}[-:][0-9]{2}[-:][0-9]{2})"
+    r"Z(?:-[0-9]+)?-history\.md",
+    re.IGNORECASE,
+)
 FENCE_LINE = re.compile(r"^[ \t]*(\x60{3,}|~{3,})([^\n]*)$")
 BLOCKQUOTE_PREFIX = re.compile(r"(?: {0,3}>[ \t]?)+")
 LINK_PADDING = r"[ \t]*(?:\n[ \t]*)?"
@@ -167,7 +173,28 @@ def score_text(text):
     }
 
 
-def collect_path_gaps(path):
+def has_linked_timestamped_history(path, text):
+    handoff_dir = path.parent.resolve()
+    for target in evidence_targets(text, links_only=True):
+        if target.startswith(("//", "\\\\")):
+            continue
+        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target) and not WINDOWS_PATH.match(target):
+            continue
+        history = path.parent / target
+        if not TIMESTAMPED_HISTORY_NAME.fullmatch(history.name):
+            continue
+        try:
+            if history.parent.resolve() != handoff_dir:
+                continue
+            metadata = history.lstat()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if S_ISREG(metadata.st_mode) and metadata.st_size > 0:
+            return True
+    return False
+
+
+def collect_path_gaps(path, text):
     if path.name.lower() != "handoff.md":
         return []
 
@@ -178,10 +205,12 @@ def collect_path_gaps(path):
     history_path = path.with_name(f"{path.stem}-history{path.suffix}")
     if history_path.is_file() and history_path.stat().st_size > 0:
         return []
+    if has_linked_timestamped_history(path, text):
+        return []
 
     return [
         f"oversized_handoff_without_history: {path} is {size_bytes:,} bytes and has no "
-        f"non-empty sibling {history_path.name}."
+        f"non-empty sibling {history_path.name} or linked non-empty timestamped sibling history file."
     ]
 
 
@@ -217,17 +246,20 @@ def outside_fenced_blocks(text):
     return "".join(body)
 
 
-def evidence_targets(text):
+def evidence_targets(text, *, links_only=False):
     body = outside_fenced_blocks(text)
     definitions = {}
     for label, destination in LINK_DEFINITION.findall(body):
         definitions.setdefault(normalize_link_label(label), destination)
 
-    for match in EVIDENCE_REFERENCE.finditer(LINK_DEFINITION.sub("", body)):
+    body = LINK_DEFINITION.sub("", body)
+    for match in EVIDENCE_REFERENCE.finditer(body):
         code = match["code"]
         if code is not None:
-            if code.startswith(("/", "\\\\")) or WINDOWS_PATH.match(code):
+            if not links_only and (code.startswith(("/", "\\\\")) or WINDOWS_PATH.match(code)):
                 yield code
+            continue
+        if links_only and match.start() > 0 and body[match.start() - 1] == "!":
             continue
 
         target = match["link"]
@@ -290,11 +322,11 @@ def main():
         result["rework_tasks"].append("Provide a checkable local evidence link or review external evidence separately.")
     if result["threshold"] == "ready" and (evidence["missing"] or not evidence["present"]):
         result["threshold"] = "usable"
-    result["gaps"] = collect_path_gaps(path)
+    result["gaps"] = collect_path_gaps(path, text)
     if result["gaps"]:
         result["rework_tasks"].append(
             "Split the oversized handoff into a small current-truth handoff.md and a non-empty "
-            "verbatim handoff-history.md before the next checkpoint."
+            "verbatim sibling history file before the next checkpoint. Link the history from handoff.md."
         )
     result["path"] = str(path.resolve())
     data = json.dumps(result, ensure_ascii=False, indent=2)
