@@ -257,6 +257,60 @@ class ArtifactQualityGateTests(unittest.TestCase):
             self.assertIn("150,001 bytes", missing_result["gaps"][0])
             self.assertIn("handoff-history.md", missing_result["gaps"][0])
 
+    def test_oversized_handoff_accepts_linked_timestamped_sibling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            handoff = Path(tmp) / "handoff.md"
+            history = handoff.with_name("handoff-20261125T012345Z-history.md")
+            history.write_text("verbatim history\n", encoding="utf-8")
+            collision = handoff.with_name("handoff-20261125T012345Z-2-history.md")
+            collision.write_text("verbatim history\n", encoding="utf-8")
+            extended_date = handoff.with_name("handoff-2026-11-25T01-23-45Z-history.md")
+            extended_date.write_text("verbatim history\n", encoding="utf-8")
+
+            for link in (
+                f"[History](./{history.name})",
+                f"[History][archive]\n\n[archive]: {collision.name}#progress",
+                f"[History](<{extended_date.as_posix()}>)",
+            ):
+                with self.subTest(link=link):
+                    handoff.write_text(f"# Handoff\n\n{link}\n\n" + "x\n" * 75_000, encoding="utf-8")
+
+                    self.assertEqual(run_validator(handoff)["gaps"], [])
+
+    def test_oversized_handoff_rejects_invalid_timestamped_history_links(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            handoff = Path(tmp) / "handoff.md"
+            history = handoff.with_name("handoff-20261125T012345Z-history.md")
+            history.write_text("verbatim history\n", encoding="utf-8")
+            empty = handoff.with_name("handoff-20261125T012345Z-2-history.md")
+            empty.touch()
+            directory = handoff.with_name("handoff-20261125T012345Z-3-history.md")
+            directory.mkdir()
+            nested = directory / history.name
+            nested.write_text("verbatim history\n", encoding="utf-8")
+            notes = handoff.with_name("handoff-notes-history.md")
+            notes.write_text("verbatim history\n", encoding="utf-8")
+
+            cases = {
+                "missing": "[History](handoff-20261125T012345Z-4-history.md)",
+                "empty": f"[History]({empty.name})",
+                "directory": f"[History]({directory.name})",
+                "outside sibling directory": f"[History]({directory.name}/{nested.name})",
+                "wrong filename": f"[History]({notes.name})",
+                "unlinked sibling": f"History file: `{history.name}`",
+                "absolute path in code": f"History file: `{history}`",
+                "fenced link": f"```md\n[History]({history.name})\n```",
+                "image reference": f"![History]({history.name})",
+            }
+            for case, reference in cases.items():
+                with self.subTest(case=case):
+                    handoff.write_text(f"# Handoff\n\n{reference}\n\n" + "x\n" * 75_000, encoding="utf-8")
+
+                    gaps = run_validator(handoff)["gaps"]
+
+                    self.assertEqual(len(gaps), 1)
+                    self.assertIn("oversized_handoff_without_history", gaps[0])
+
 
 if __name__ == "__main__":
     unittest.main()

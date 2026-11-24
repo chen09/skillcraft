@@ -23,9 +23,10 @@ description: Validate reports, receipts, skill candidates, handoffs, handoff-fir
 5. For scores of 90 or higher, use the CLI's `threshold` to decide whether the artifact is
    ready for review. The CLI checks local references separately from the score. It reports
    `usable` if referenced local paths are missing or there are no checkable local paths.
-6. For an input named `handoff.md`, record an `oversized_handoff_without_history` gap when the
-   file exceeds 150,000 bytes and has no non-empty sibling `handoff-history.md`. This gap adds a
-   rework task but does not change the score or threshold.
+6. For an input named `handoff.md` that exceeds 150,000 bytes, check for a non-empty sibling
+   `handoff-history.md` or a Markdown link to a non-empty timestamped history file in the same
+   directory. If neither is present, add the `oversized_handoff_without_history` gap and a rework
+   task. The gap leaves the score and threshold unchanged.
 7. Before reporting acceptance, open the evidence that supports each key claim, confirm the
    independent check and its result, and list any remaining acceptance items. Report an unavailable
    check as pending. A path check cannot establish the contents of a file or that a test ran.

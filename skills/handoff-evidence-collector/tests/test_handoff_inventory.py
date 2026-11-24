@@ -308,6 +308,18 @@ class HandoffInventoryTests(unittest.TestCase):
             self.assertEqual(len(result["gaps"]), 1)
             self.assertIn("oversized_handoff_without_history", result["gaps"][0])
 
+            history = handoff.with_name("handoff-20261125T012345Z-history.md")
+            history.write_bytes(base)
+            with handoff.open("a", encoding="utf-8") as stream:
+                stream.write(f"\n\n[History]({history.name})\n")
+
+            proc = subprocess.run(
+                [sys.executable, str(BUNDLED_QUALITY_VALIDATOR), str(handoff)],
+                check=True, capture_output=True, encoding="utf-8", timeout=20,
+            )
+
+            self.assertEqual(json.loads(proc.stdout)["gaps"], [])
+
     def test_history_is_evidence_only_while_existing_classifications_stay_unchanged(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
