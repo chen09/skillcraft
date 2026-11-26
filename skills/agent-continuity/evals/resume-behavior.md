@@ -138,6 +138,20 @@ Only mark `complete` true for a whole, untruncated file read. Both `ok` and
 the actual text returned by `current-state.txt` so the checker can match its
 `archive:` field. Keep the original tool trace or an evidence reference.
 
+If the read command was `nl -ba` with its default tab separator, remove the
+display line numbers only from the state result's `text` field in the normalized
+JSONL. For example, `"     2\tarchive: old-chat-west.txt"` becomes
+`"archive: old-chat-west.txt"`. Here `\t` is the JSON escape for a tab.
+
+```python
+import re
+
+state_result["text"] = re.sub(r"(?m)^ *[0-9]+\t", "", state_result["text"])
+```
+
+Keep the original tool trace with its line numbers intact. Preserve the call
+IDs, event order, and result flags in the normalized trace.
+
 ```json
 {"event":"read_start","id":"call-1","path":"handoff.md"}
 {"event":"read_result","id":"call-1","ok":true,"complete":true}
