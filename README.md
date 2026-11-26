@@ -117,6 +117,10 @@ python -m unittest discover -s skills/handoff-evidence-collector/tests -p 'test_
 python -m unittest discover -s skills/artifact-quality-gate/tests -p 'test_*.py' -v
 ```
 
+For changes to the continuity instructions, use the
+[resume behavior cases](skills/agent-continuity/evals/resume-behavior.md) in fresh
+sessions. These check agent behavior separately from the Python validators.
+
 ## Repository Rules
 
 - Keep downloaded videos, generated images, transcripts, and temporary outputs out of git.
