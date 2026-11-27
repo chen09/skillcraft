@@ -15,6 +15,7 @@ Apply this BEFORE every nontrivial DSH run_code program, even when no PowerShell
 - For Windows paths in JavaScript, prefer forward-slash paths or String.raw. Never paste unescaped backslashes into an ordinary JS literal: numeric path components can cause strict-mode octal SyntaxError; \t/\n/\v can silently alter paths.
 - String.raw disables escape processing, NOT template interpolation. PowerShell ${name} can still be interpolated by JavaScript; keep such command text in an ordinary quoted string or explicitly protect the dollar sign.
 - A backtick also ends a JavaScript template literal, including inside String.raw. When PowerShell text is embedded in a template, avoid the PowerShell backtick escape (for example `? or `: after a variable); build the string by concatenation instead: '$K/files/'+$e+'?ref='+$sha.
+- Some SDK tools are deferred and can reject inside a program with "is deferred and not yet loaded" even after earlier use (seen with subagent and send_message). Load them in a separate step with tool_search or defer_execute_tool, then retry only the rejected call; earlier calls in that program may already have completed, so never replay the whole program.
 - Keep programs short and group only independent read-only operations. Run an unfamiliar required-argument tool probe separately BEFORE combining it with writes. Never replay a whole partially executed program blindly.
 
 Verified source-level examples (these are JavaScript/TypeScript, not outer transport JSON):
