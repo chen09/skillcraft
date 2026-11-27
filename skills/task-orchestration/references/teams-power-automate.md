@@ -24,6 +24,20 @@ If you have a solution-aware deployment package, import into the target environm
 3. Return or record the Flow run ID and Teams reply ID/link when available. Verify the visible original thread, the expected text, and any task link. Persist verification through the controller. If the run times out or no receipt is available, reconcile the run and original thread before retrying.
 4. If the original thread cannot be addressed through the connector, hand the approved draft and source link to an authorized operator for manual reply and receipt capture. Do not fall back to a new channel post. [Teams reply action](https://learn.microsoft.com/en-us/connectors/teams/#reply-with-a-message-in-a-channel).
 
+## What has run successfully
+
+The following configurations were observed in one Microsoft 365 environment. Rebind the Teams connection, destination, and permitted data fields before trying them in another environment.
+
+| Operation | Configuration | Evidence and scope |
+|---|---|---|
+| Capture a selected message | **For a selected message** → **Post message in a chat or channel**. Set **Post as** to **Flow bot** and **Post in** to **Chat with Flow bot**. Include the approved text and source message link in the queue payload. | The Teams post action returned HTTP 201 for the queue message. This verified delivery to the chat queue. A durable ledger and duplicate handling need their own checks. |
+| Read channel posts and replies | Manual trigger → **Get messages in a channel** → **Send a Microsoft Graph HTTP request** using `GET` on the channel messages endpoint with `$expand=replies`. | The Graph step returned HTTP 200 with posts and nested replies. Use this as a separate read workflow when you need to inspect existing posts without submitting them for triage. |
+| Publish a new channel post | Manual trigger → **Get an @mention token for a user** if needed → **Post message in a chat or channel**. Set **Post as** to **User** and **Post in** to **Channel**. Bind the intended team and channel. | The send action returned HTTP 201 and the created channel message, including the mention. This was a one-off post to the channel. |
+| Reply in the original thread through the Teams UI | During an agent-assisted session, open the original post, enter the reply in the Teams thread composer, and verify it there after sending. | A reply entered through the Teams UI was verified in the original thread. |
+| Reply in the original thread through Power Automate | Use **Reply with a message in a channel** as described in Flow B. | Automated delivery has not yet been verified in this environment. |
+
+Check the actual action, destination, and result in run history. A successful Graph `GET` only establishes that the flow read the thread. For automated reply acceptance, verify that the reply action ran and that the reply is visible under the intended original post. The capture and reply flows are one deployment example. A separate read or new-post flow is optional and depends on what the environment needs.
+
 ## Verify the first environment
 
 With an approved sample in a sandbox, select the same message twice and check that it yields one intake event. Triage it, create or link one ledger item, pause and resume, and verify writeback to that same item. Send one approved reply and check its location and task link. Submit the same output again through the controller or guarded Flow B entry point, and verify no second reply appears. Test a missing thread ID and an uncertain send state without sending another message.
