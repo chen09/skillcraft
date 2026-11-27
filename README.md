@@ -44,6 +44,7 @@ skillcraft/
 - `skills/handoff-evidence-collector`: Collect, classify, and validate local Codex/Cursor/project handoff files without rewriting source projects.
 - `skills/office-deep-parsing-agent`: Deeply parse mixed Office packages with spreadsheet, document, visual export, OCR, and traceable summary artifacts.
 - `skills/powershell-gh-cli`: Run GitHub CLI commands safely from Windows PowerShell using JSON output and PowerShell object handling.
+- [task-orchestration](skills/task-orchestration/SKILL.md): Turn requests from multiple sources into tracked tasks, verify writeback, and deliver replies through configured routes.
 - `skills/windows-powershell-safety`: Run non-trivial Windows PowerShell commands safely, covering literal matching, native CLI stderr, loop piping, and secret-safe logs.
 - `skills/video-research-visual-report`: Convert a video into a researched text review plus visual report. It covers transcript extraction, original-source checking, external opinions, adversarial analysis, information images, long images, and PPT-style outputs.
 
