@@ -1,0 +1,38 @@
+name: skills-tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pillow openpyxl pyyaml
+      - name: Compile all Python files
+        run: python -m compileall -q skills
+      - name: Run skill unit tests
+        shell: bash
+        run: |
+          set -e
+          for d in skills/*/tests; do
+            [ -d "$d" ] || continue
+            s="${d%/tests}"
+            echo "::group::$s"
+            (cd "$s" && python -m unittest discover -s tests -v)
+            echo "::endgroup::"
+          done
