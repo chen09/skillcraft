@@ -28,9 +28,17 @@ foreach ($number in $prs) {
 
 Reason: this keeps `>`, `|`, `$`, quotes, braces, and newlines inside PowerShell object handling instead of shell argument parsing.
 
+## Exact Subcommand And Credential Preflight
+
+- Flags belong to the exact subcommand, not to all of `gh`. `gh pr view/edit/checks --repo owner/repo` is supported; `gh api --repo` is NOT. For REST use the fully qualified `repos/owner/repo/...` endpoint; for GraphQL pass explicit owner/repo variables.
+- Before a first mutating invocation with any unverified flag, consult that exact installed subcommand with `--help`. A safer quoting pattern cannot make an unsupported flag valid.
+- Do not print `git remote -v`, `git remote get-url`, or `.git/config` as routine owner checks: remote URLs may embed credentials. Use supplied owner/repo plus `git rev-parse --show-toplevel`, branch and status. Never enable verbose authenticated API output or print credential environment variables.
+- Stop a mutation loop at a non-zero exit. Parser rejection before API execution is not a published comment. If execution/output status is uncertain, inspect the remote reply/commit id before retrying; never replay an entire partially completed batch.
+
 ## Safer Invocation Rules
 
 - Use PowerShell arrays for arguments when the command is complex.
+- A bare native argument such as `threadId=$thread.id` does NOT evaluate the object member: it can stringify the object plus literal `.id`. Bind `$threadId = [string]$thread.id`, then use separate array entries `'-f', "threadId=$threadId"` (or `"threadId=$($thread.id)"`). `gh api -F` performs typed conversion and treats a leading `@` as a file reference, so this malformed object string can become an unintended file-open attempt. Use `-f` for known string IDs, validate the scalar before mutation, and on parser rejection inspect remote state then retry only unpublished operations.
 - Do not build a single command string and run it with `Invoke-Expression`.
 - Use `ConvertFrom-Json` for filtering, joins, grouping, and formatted output.
 - For PR bodies, comments, titles, or other metadata containing Japanese, Chinese, or other non-ASCII text, write the body to an explicit UTF-8 file and pass it with `--body-file`; do not pipe a PowerShell here-string directly to `gh --body-file -`.
