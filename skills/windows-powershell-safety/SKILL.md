@@ -44,6 +44,12 @@ const broken = 'service_now_request\('; // JS loses the backslash; regex has an 
 - Required at pageId / MCP -32602 is argument validation, not a website, permission, or service-outage error. Correct only the missing argument and retry that read-only call.
 - An unauthenticated DSH root page is not a dead server. Use only an already authorized token URL when browser access is necessary; never restart a listening service or expose/search for credentials to solve an unrelated skill edit. Local user-skill text updates do not require browser login.
 
+## Browser UI Editing And Automation Gates
+
+- Rich designers (flow editors, Monaco-style inputs) may not commit synthetic text: `Input.insertText` after a JS selection can update only the visible DOM while the underlying definition keeps the old value, and a later save silently persists that old value. Use real input events instead: triple-click to select the field content, Backspace, per-character `Input.dispatchKeyEvent` with `text`, then Tab to commit. After saving, reload the page and read the server state (code view, definition, or API) to verify; the editor display alone is not proof.
+- An automation gate built from hardcoded constant comparisons (for example `"LOCKED" equals "LOCKED"`) never evaluates true, and a run page that draws both branches can mislead: the branch label does not tell you whether an action ran. Check the action's own result icon on the run page (skipped is a grey dash, not a green check) and read the gate expression in code view before claiming that a guarded action did or did not execute.
+- Treat a temporarily enabled send gate as an exposed write window: prepare the edit, run exactly once, then relock and verify by reloading, before reporting anything else. If a step in the window fails, restoring the gate takes priority over retries or reports.
+
 ## Failure Classification And Partial Effects
 
 1. Syntax/compile error before run_code execution: no program operations ran. Fix source syntax/literals before retrying.
