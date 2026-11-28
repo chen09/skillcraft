@@ -46,6 +46,7 @@ skillcraft/
 - `skills/powershell-gh-cli`: Run GitHub CLI commands safely from Windows PowerShell using JSON output and PowerShell object handling.
 - [task-orchestration](skills/task-orchestration/SKILL.md): Turn requests from multiple sources into tracked tasks, verify writeback, and deliver replies through configured routes.
 - `skills/windows-powershell-safety`: Run non-trivial Windows PowerShell commands and DSH run_code programs safely, covering literal matching, native CLI stderr, loop piping, secret-safe logs, JavaScript/JSON escaping layers, MCP contract checks, and partial-effect recovery.
+- `skills/dsh-upgrade-history-safety`: Upgrade, rebuild, switch, or repair a local DeepSeek Harness installation without losing persisted session history, with a read-only preflight and a guarded repair script.
 - `overlays/`: Environment-neutral sections applied on top of third-party skills (find-skills, test-driven-development, writing-plans); see `overlays/README.md`.
 - `skills/video-research-visual-report`: Convert a video into a researched text review plus visual report. It covers transcript extraction, original-source checking, external opinions, adversarial analysis, information images, long images, and PPT-style outputs.
 
