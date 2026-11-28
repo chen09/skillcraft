@@ -1,6 +1,6 @@
 ---
 name: artifact-quality-gate
-description: Validate reports, receipts, skill candidates, handoffs, handoff-first inventories, research outputs, and implementation summaries for evidence, verification, real-vs-mock clarity, repair path, and human-openable entrypoints. Use when a non-trivial Codex artifact may be too thin, generic, unverified, hard for a human to accept, or claims self-distillation/continuity results that should be grounded in handoff evidence.
+description: For original-based self-distillation, require original preservation separately from heuristic scoring. Validate reports, receipts, skill candidates, handoffs, handoff-first inventories, research outputs, and implementation summaries for evidence, verification, real-vs-mock clarity, repair path, and human-openable entrypoints. Use when a non-trivial Codex artifact may be too thin, generic, unverified, hard for a human to accept, or claims self-distillation/continuity results that should be grounded in handoff evidence.
 ---
 
 # Artifact Quality Gate
@@ -37,12 +37,42 @@ description: Validate reports, receipts, skill candidates, handoffs, handoff-fir
    available. If the first action changes state, check a prerequisite without performing the
    action. Record what was checked and the result, and mark any check you could not run pending.
 
+
+### Blocking original-preservation contract
+
+When the caller requires preservation of an authoritative original, record its source/version,
+trusted SHA-256, scope and current artifact before scoring. A high material score cannot override
+a failed preservation contract. Ordinary rewrites without this requirement use the existing workflow.
+
+For this user's personal original V1 self-distillation, run `scripts/personal_preservation_contract.py`
+with the target Markdown, `--source` and `--expected-source-sha256`. For a completed-cycle claim,
+also provide `--require-package --package` with the actual run directory. The caller obtains paths
+from the current node; never reuse another node's absolute project paths. Resolve bundled scripts
+relative to this skill directory and discover the current Python executable locally.
+
+The validator requires one intact original in a three-backtick text block and the original's phase,
+output-name, periodic-cycle and P0 markers. Those markers prove retained requirements only.
+Package checking proves nonempty paths only. Neither check proves stage execution, correct evidence
+labels, installation, actual triggering or business acceptance. Review dated P0 inputs/results,
+per-stage substantive evidence and claims independently, using the caller's claims validator where
+available. A preserved handbook must never be reported as a completed new cycle.
+
+Run scripts that write inputs/results only against an isolated copy. Preserve the first-round
+receipts and sources. Record the preservation JSON, material-score JSON, source/hash conventions,
+Page block ID/hash when applicable, execution modes, installed status, unmet domain checks and
+rollback entry. Do not install from this workflow. Retain rejected artifacts; repair candidates in
+isolation. Restore only the exact backed-up skill revision after a separately authorized install.
+
+Hashes in this validator cover UTF-8 text with universal newlines normalized to LF. Record raw-byte
+hashes separately for installation guards; do not compare the two conventions as content drift.
+
 ## Output
 
 Return JSON plus a short Markdown summary. Report the heuristic `score` and `score_threshold`,
 the evidence-aware `threshold`, missing or unchecked references from `review.local_evidence`,
 and `gaps` such as an oversized handoff. The CLI leaves independent verification and acceptance
-pending. Report the actual verification mode and result separately.
+pending. Report the actual verification mode and result separately. Never claim real validation
+when only mock, fixture, dry-run, or candidate-only validation was performed.
 
 ## Evidence Handling
 
