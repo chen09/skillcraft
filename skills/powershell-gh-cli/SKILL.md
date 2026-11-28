@@ -34,6 +34,7 @@ Reason: this keeps `>`, `|`, `$`, quotes, braces, and newlines inside PowerShell
 - Before a first mutating invocation with any unverified flag, consult that exact installed subcommand with `--help`. A safer quoting pattern cannot make an unsupported flag valid.
 - Do not print `git remote -v`, `git remote get-url`, or `.git/config` as routine owner checks: remote URLs may embed credentials. Use supplied owner/repo plus `git rev-parse --show-toplevel`, branch and status. Never enable verbose authenticated API output or print credential environment variables.
 - Stop a mutation loop at a non-zero exit. Parser rejection before API execution is not a published comment. If execution/output status is uncertain, inspect the remote reply/commit id before retrying; never replay an entire partially completed batch.
+- Stacked pull requests do not retarget reliably. Before merging a PR whose base is another PR's branch, confirm its base is now `main` (`gh pr view N --json baseRefName`, or `gh pr edit N --base main`); a PR merged into a stale base branch never reaches `main`. After merging, verify with `git merge-base --is-ancestor <merge-commit> origin/main`.
 
 ## Safer Invocation Rules
 
