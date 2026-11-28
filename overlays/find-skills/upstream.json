@@ -1,0 +1,10 @@
+{
+  "skill": "find-skills",
+  "repo": "https://github.com/vercel-labs/skills",
+  "path": "skills/find-skills",
+  "verifiedCommit": "773fb2c7bbf16781670a3520affc4abd0c6151ae",
+  "verifiedCommitDate": "2026-07-10T20:54:38Z",
+  "license": "MIT",
+  "placement": "Insert section.md after the first H1 heading of SKILL.md, separated by one blank line on each side.",
+  "verifiedOn": "2026-11-28 (FJT): upstream SKILL.md at verifiedCommit + section.md reproduces the installed file."
+}
