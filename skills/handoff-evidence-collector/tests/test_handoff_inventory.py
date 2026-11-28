@@ -185,7 +185,7 @@ class HandoffInventoryTests(unittest.TestCase):
             validator = tmp_path / "validator.py"
             validator.write_text(
                 "import sys\n"
-                "message = f'OK: 日本語-中文-🚀/{sys.argv[1]}\\n'.encode('utf-8') + b'\\xff\\n'\n"
+                "message = f'OK: 日本語-中文-🚀/{sys.argv[1]}\\n'.encode('utf-8', 'surrogateescape') + b'\\xff\\n'\n"
                 "sys.stdout.buffer.write(message)\n"
                 "sys.stderr.write('diagnostic | 日本語-🚀\\nsecond line\\n')\n",
                 encoding="utf-8",

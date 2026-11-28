@@ -187,7 +187,7 @@ def main() -> None:
         "scan_gaps": gaps,
         "records": records,
     }
-    (out / "work" / "handoff_inventory.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out / "work" / "handoff_inventory.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8", errors="surrogateescape")
 
     lines = [
         "# Handoff Inventory",
@@ -314,7 +314,7 @@ def main() -> None:
             f"| `{markdown_cell(rec['path'])}` | {rec.get('kind')} | {rec.get('size_bytes', '')} | "
             f"{oversized_text} | {rec.get('mtime','')} | {rec['evidence_mode']} | {fields} | {markdown_cell(validation)} |"
         )
-    (out / "Handoff_Inventory.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out / "Handoff_Inventory.md").write_text("\n".join(lines) + "\n", encoding="utf-8", errors="surrogateescape")
     print(json.dumps({"output_root": str(out), "handoffs": len(records), "counts": counts}, ensure_ascii=False, indent=2))
 
 
