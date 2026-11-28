@@ -1,0 +1,10 @@
+{
+  "skill": "writing-plans",
+  "repo": "https://github.com/obra/superpowers",
+  "path": "skills/writing-plans",
+  "verifiedCommit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+  "verifiedCommitDate": "2026-09-25T18:06:27Z",
+  "license": "MIT",
+  "placement": "Insert section.md after the first H1 heading of SKILL.md, separated by one blank line on each side.",
+  "verifiedOn": "2026-11-28 (FJT): upstream SKILL.md at verifiedCommit + section.md reproduces the installed file."
+}
